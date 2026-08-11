@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PSM Analytics Pro</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+  <link rel="stylesheet" href="css/style.css?v=2.13.3" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+</head>
+<body>
+  <section id="modeGate" class="mode-gate" aria-labelledby="modeGateTitle">
+    <div class="mode-gate-card">
+      <div class="mode-gate-brand">
+        <img src="assets/logo-votorantim-cimentos.png" alt="Votorantim Cimentos" />
+        <div><span>PLANEJAMENTO SEMANAL</span><h1 id="modeGateTitle">PSM Analytics Pro</h1><p>Escolha como deseja acessar o projeto.</p></div>
+      </div>
+      <div class="mode-choice-grid">
+        <button id="btnModeViewer" class="mode-choice mode-choice-viewer" type="button">
+          <span class="mode-choice-icon" aria-hidden="true">◉</span>
+          <strong>Visualizar</strong>
+          <small>Consulta em modo protegido. Permite usar filtros e atualizar somente a Programação diária.</small>
+          <em>Entrar para visualizar</em>
+        </button>
+        <button id="btnModePresentation" class="mode-choice mode-choice-presentation" type="button">
+          <span class="mode-choice-icon" aria-hidden="true">◆</span>
+          <strong>Apresentação</strong>
+          <small>Acesso completo a todas as telas, cadastros, importações, edições e relatórios atuais.</small>
+          <em>Entrar com acesso completo</em>
+        </button>
+      </div>
+      <p class="mode-gate-note">Os dois modos utilizam o mesmo projeto e os mesmos dados salvos.</p>
+    </div>
+  </section>
+
+  <div id="appShell" class="app-shell" hidden>
+    <aside class="sidebar">
+      <div class="brand"><span class="brand-mark brand-mark-logo"><img src="assets/logo-votorantim-cimentos.png" alt="Votorantim Cimentos" /></span><div><strong>Analytics Pro</strong><small>Planejamento semanal</small></div><button id="btnPinSidebar" class="sidebar-pin" type="button" title="Fixar barra lateral" aria-pressed="false">📌</button></div>
+      <div class="workspace-switcher" aria-label="Selecionar reunião">
+        <button id="btnWorkspacePsm" class="workspace-button active" type="button" data-workspace="psm"><span class="workspace-icon">PSM</span><span>Reunião PSM</span></button>
+        <button id="btnWorkspaceProman" class="workspace-button" type="button" data-workspace="proman"><span class="workspace-icon">PR</span><span>Reunião PROMAN</span></button>
+      </div>
+      <nav id="psmNav" data-workspace-nav="psm">
+        <button class="nav-item active" data-view="dashboard">▦ Dashboard</button>
+        <button class="nav-item" data-view="ordens">☷ Ordens</button>
+        <button class="nav-item" id="btnOpenActivity" data-presentation-only>＋ Nova atividade</button>
+        <button class="nav-item" id="btnOpenCapacity" data-presentation-only>◷ HH disponível</button>
+        <button class="nav-item" data-view="importacoes" data-presentation-only>⇩ Importações</button>
+        <button class="nav-item" data-view="programacao">▣ Programação diária</button>
+        <button class="nav-item" data-view="quadro">▦ QUADRO QPP</button>
+        <button class="nav-item" data-view="ataFab">▤ ATA 1</button>
+        <button class="nav-item" data-view="ataBrit">▤ ATA 2</button>
+        <button class="nav-item report-email-button" id="btnEmailReport" type="button" title="Gerar o relatório completo em PDF e enviar por e-mail" data-presentation-only>✉ Enviar por e-mail</button>
+        <button class="nav-item" data-view="historico" data-presentation-only>↺ Histórico</button>
+      </nav>
+      <nav id="promanNav" data-workspace-nav="proman" hidden>
+        <button class="nav-item active" data-view="proman">▦ Painel PROMAN</button>
+        <button class="nav-item" data-view="promanBacklog">☷ Backlog PROMAN</button>
+        <button class="nav-item" data-view="promanAdd" data-presentation-only>＋ Nova atividade</button>
+        <button class="nav-item" data-view="promanImport" data-presentation-only>⇩ Importações</button>
+        <button class="nav-item" data-view="promanAtaFabrica">▤ ATA 1</button>
+        <button class="nav-item" data-view="promanAtaBritagem">▤ ATA 2</button>
+      </nav>
+      <div class="sidebar-footer-wrap">
+        <div class="sidebar-footer"><span id="saveStatus" class="status-dot"></span><span>Dados salvos localmente</span></div>
+        <div class="sidebar-signature">
+          <strong>José Manoel Ferreira</strong>
+          <a href="https://www.linkedin.com/in/jose-manoel-ferr" target="_blank" rel="noopener noreferrer">www.linkedin.com/in/jose-manoel-ferr</a>
+        </div>
+        <button id="btnChangeMode" class="mode-switch-button" type="button"><span id="accessModeBadge">Modo</span><strong>Trocar acesso</strong></button>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar">
+        <div><h1 id="mainPageTitle">Dashboard PSM</h1><p id="subtitle"><span id="planningWeek">Próxima semana</span> · <span id="planningPeriod">calculando período...</span> · visão consolidada de ordens</p></div>
+        <div class="top-actions">
+          <button id="btnSaveProject" title="Salvar todos os dados do sistema em um arquivo PSM" data-presentation-only>Salvar PSM</button>
+          <label class="file-button" title="Abrir um PSM salvo anteriormente">Abrir PSM<input id="projectFileInput" type="file" accept=".psm,.json,application/json" hidden /></label>
+          <button id="btnExport" data-presentation-only>Exportar Excel</button>
+          <button id="btnTheme" title="Alternar tema">◐</button>
+          <button id="btnFullscreen" title="Tela cheia">⛶</button>
+          <button id="btnChangeModeTop" class="change-mode-top" type="button" title="Voltar à escolha de acesso">Trocar modo</button>
+        </div>
+      </header>
+
+      <section id="generalFilters" class="toolbar panel">
+        <div class="global-search-wrap">
+          <input id="globalSearch" type="search" placeholder="Pesquisar" autocomplete="off" aria-describedby="globalSearchCount" />
+          <span id="globalSearchCount" class="global-search-count" hidden></span>
+        </div>
+        <div id="filterQpp" class="multi-select" data-filter="qpp">
+          <button id="filterQppButton" type="button" class="multi-select-button" aria-expanded="false">Classificação: Todas</button>
+          <div id="filterQppMenu" class="multi-select-menu" hidden>
+            <label class="multi-option multi-option-all"><input id="filterQppAll" type="checkbox" checked /> <span>Classificação: Todas</span></label>
+            <div id="filterQppOptions"></div>
+          </div>
+        </div>
+        <div id="filterTipoOrdem" class="multi-select" data-filter="tipoOrdem">
+          <button id="filterTipoOrdemButton" type="button" class="multi-select-button" aria-expanded="false">Todos os tipos</button>
+          <div id="filterTipoOrdemMenu" class="multi-select-menu" hidden>
+            <label class="multi-option multi-option-all"><input id="filterTipoOrdemAll" type="checkbox" checked /> <span>Todos os tipos</span></label>
+            <div id="filterTipoOrdemOptions"></div>
+          </div>
+        </div>
+        <div id="filterArea" class="multi-select" data-filter="area">
+          <button id="filterAreaButton" type="button" class="multi-select-button" aria-expanded="false">Todas as áreas</button>
+          <div id="filterAreaMenu" class="multi-select-menu" hidden>
+            <label class="multi-option multi-option-all"><input id="filterAreaAll" type="checkbox" checked /> <span>Todas as áreas</span></label>
+            <div id="filterAreaOptions"></div>
+          </div>
+        </div>
+        <div id="filterOficina" class="multi-select" data-filter="oficina">
+          <button id="filterOficinaButton" type="button" class="multi-select-button" aria-expanded="false">Todas as oficinas</button>
+          <div id="filterOficinaMenu" class="multi-select-menu" hidden>
+            <label class="multi-option multi-option-all"><input id="filterOficinaAll" type="checkbox" checked /> <span>Todas as oficinas</span></label>
+            <div id="filterOficinaOptions"></div>
+          </div>
+        </div>
+        <div id="filterCrit" class="multi-select" data-filter="crit">
+          <button id="filterCritButton" type="button" class="multi-select-button" aria-expanded="false">Todas as criticidades</button>
+          <div id="filterCritMenu" class="multi-select-menu" hidden>
+            <label class="multi-option multi-option-all"><input id="filterCritAll" type="checkbox" checked /> <span>Todas as criticidades</span></label>
+            <div id="filterCritOptions"></div>
+          </div>
+        </div>
+        <div id="filterObs" class="multi-select" data-filter="obs">
+          <button id="filterObsButton" type="button" class="multi-select-button" aria-expanded="false">Todas as observações</button>
+          <div id="filterObsMenu" class="multi-select-menu" hidden>
+            <label class="multi-option multi-option-all"><input id="filterObsAll" type="checkbox" checked /> <span>Todas as observações</span></label>
+            <div id="filterObsOptions"></div>
+          </div>
+        </div>
+        <button id="btnClearFilters" class="ghost">Limpar filtros</button>
+      </section>
+
+      <section id="dashboardView" class="view active">
+        <div class="kpi-grid">
+          <article class="kpi"><span>Total de ordens</span><strong id="kpiOrders">0</strong><small>registros filtrados</small></article>
+          <article class="kpi"><span>Ordens QPP</span><strong id="kpiQpp">0</strong><small id="kpiQppPct">0% do total</small></article>
+          <article class="kpi"><span>HH planejado QPP</span><strong id="kpiHH">0</strong><small>somente atividades classificadas como QPP</small></article>
+          <article class="kpi"><span>HH disponível</span><strong id="kpiAvailable">0</strong><small>capacidade informada manualmente</small></article>
+          <article class="kpi"><span>Saldo de HH</span><strong id="kpiBalance">0</strong><small>disponível − planejado QPP</small></article>
+          <article class="kpi"><span>Utilização</span><strong id="kpiUtilization">0%</strong><small>HH QPP / capacidade</small></article>
+          <article class="kpi"><span>Custo planejado</span><strong id="kpiCost">R$ 0</strong><small>soma das ordens</small></article>
+          <article class="kpi"><span>Custo médio</span><strong id="kpiAvgCost">R$ 0</strong><small>por ordem</small></article>
+        </div>
+
+        <div class="chart-grid">
+          <article class="panel chart-card wide"><div class="panel-title"><div><h2>Capacidade x planejamento por área</h2><small id="capacityChartFilterLabel">Todas as oficinas</small></div></div><canvas id="capacityChart"></canvas></article>
+          <article class="panel chart-card"><div class="panel-title"><h2>Participação QPP</h2></div><canvas id="qppChart"></canvas></article>
+          <article class="panel chart-card"><div class="panel-title"><h2>HH QPP por área</h2></div><canvas id="areaChart"></canvas></article>
+          <article class="panel chart-card"><div class="panel-title"><h2>HH QPP por oficina</h2></div><canvas id="workshopChart"></canvas></article>
+          <article class="panel chart-card"><div class="panel-title"><h2>Top 10 ordens QPP por HH</h2></div><canvas id="topHHChart"></canvas></article>
+          <article class="panel chart-card"><div class="panel-title"><h2>Top 10 ordens por custo</h2></div><canvas id="topCostChart"></canvas></article>
+          <article class="panel chart-card wide"><div class="panel-title"><h2>Pareto de custo por área</h2></div><canvas id="paretoChart"></canvas></article>
+          <article class="panel insight-card"><div class="panel-title"><h2>Insights automáticos</h2></div><ul id="insights"></ul></article>
+        </div>
+      </section>
+
+      <section id="ordensView" class="view">
+        <article class="panel hh-consumption-panel">
+          <div class="hh-consumption-header">
+            <div>
+              <h2>Consumo do HH disponível</h2>
+              <p>O HH considera somente QPP; o custo considera QPP e Rotina.</p>
+            </div>
+            <label>Oficina
+              <select id="capacityConsumptionOffice" aria-label="Filtrar prévia por oficina"></select>
+            </label>
+          </div>
+          <div class="hh-mini-scroll">
+            <div class="hh-mini-layout">
+              <table class="hh-mini-table">
+                <thead id="capacityConsumptionHead"></thead>
+                <tbody id="capacityConsumptionBody"></tbody>
+              </table>
+              <div class="hh-mini-cost" title="Custo total de QPP + Rotina; não é alterado pelo filtro de oficina"><span>CUSTO TOTAL</span><strong id="capacityConsumptionCost">R$ 0</strong></div>
+            </div>
+          </div>
+        </article>
+        <article class="panel table-panel">
+          <div class="panel-title"><h2>Detalhamento das ordens</h2><div class="panel-actions" data-presentation-only><button id="btnOpenBulkOrders" type="button" class="secondary-action">＋ Ordens em massa</button><button id="btnOpenActivity2">＋ Adicionar</button></div></div>
+          <div class="table-wrap"><table><thead><tr><th class="row-number-column" aria-label="Número da linha">Nº</th><th><button type="button" class="sort-button" data-sort="ordem" aria-sort="none">OS<span class="sort-icon">↕</span></button></th><th><button type="button" class="sort-button" data-sort="descricao" aria-sort="none">Descrição<span class="sort-icon">↕</span></button></th><th><button type="button" class="sort-button" data-sort="area" aria-sort="none">Área<span class="sort-icon">↕</span></button></th><th><button type="button" class="sort-button" data-sort="oficina" aria-sort="none">Oficina<span class="sort-icon">↕</span></button></th><th><button type="button" class="sort-button" data-sort="equipamento" aria-sort="none">Equipamento<span class="sort-icon">↕</span></button></th><th class="orders-labor-column"><button type="button" class="sort-button" data-sort="maoObra" aria-sort="none" aria-label="Ordenar por mão de obra">M.O.<span class="sort-icon">↕</span></button></th><th class="orders-duration-column"><button type="button" class="sort-button" data-sort="duracao" aria-sort="none">Duração<span class="sort-icon">↕</span></button></th><th><button type="button" class="sort-button" data-sort="hh" aria-sort="none">HH<span class="sort-icon">↕</span></button></th><th><button type="button" class="sort-button" data-sort="custo" aria-sort="none">Custo<span class="sort-icon">↕</span></button></th><th><button type="button" class="sort-button" data-sort="qpp" aria-sort="none">QPP<span class="sort-icon">↕</span></button></th><th class="order-type-column"><button type="button" class="sort-button" data-sort="tipoOrdem" aria-sort="none">Tipo<span class="sort-icon">↕</span></button></th><th><button type="button" class="sort-button" data-sort="observacoes" aria-sort="none">Observação<span class="sort-icon">↕</span></button></th><th>Ações</th></tr></thead><tbody id="ordersBody"></tbody></table></div>
+          <div class="pagination"><button id="prevPage">Anterior</button><span id="pageInfo">Página 1</span><button id="nextPage">Próxima</button></div>
+        </article>
+      </section>
+
+      <section id="importacoesView" class="view">
+        <article class="panel imports-panel">
+          <div class="panel-title imports-title">
+            <div>
+              <h2>Importações</h2>
+              <p>Gerencie as bases COMPLEMENTARES e SISTEMÁTICAS em um único lugar.</p>
+            </div>
+          </div>
+          <div class="imports-grid">
+            <section class="import-card">
+              <div class="import-card-heading"><span class="import-card-icon">⇧</span><div><h3>COMPLEMENTARES</h3><p>Importa a base principal e atualiza o backlog de ordens.</p></div></div>
+              <div class="import-card-actions">
+                <label class="file-button">Importar COMPLEMENTARES<input id="fileInput" type="file" accept=".xlsx,.xlsm,.xlsb,.xls" hidden /></label>
+                <button id="btnClearOrders" type="button" class="danger ghost">Limpar banco de ordens</button>
+              </div>
+            </section>
+            <section class="import-card systematic-import-card">
+              <div class="import-card-heading"><span class="import-card-icon">⇩</span><div><h3>SISTEMÁTICAS</h3><p>Carrega o catálogo para localizar e adicionar ordens em massa.</p></div></div>
+              <div class="import-card-actions">
+                <label class="file-button systematic-file-button">Carregar SISTEMÁTICAS<input id="systematicFileInput" type="file" accept=".xlsx,.xlsm,.xlsb,.xls" hidden /></label>
+                <span id="systematicCatalogStatus" class="systematic-catalog-status">SISTEMÁTICAS não carregada</span>
+                <button id="btnClearSystematics" type="button" class="danger ghost">Limpar banco de SISTEMÁTICAS</button>
+              </div>
+              <small>Ao limpar o catálogo, as ordens já adicionadas ao backlog serão preservadas.</small>
+            </section>
+          </div>
+        </article>
+      </section>
+
+      <section id="historicoView" class="view"><article class="panel"><div class="panel-title"><h2>Histórico de alterações</h2><button id="btnClearHistory" class="danger ghost">Limpar</button></div><div id="historyList" class="history-list"></div></article></section>
+
+      <section id="programacaoView" class="view">
+        <article class="panel daily-plan-panel">
+          <div class="panel-title daily-plan-header">
+            <div><h2>Atividades QPP e Rotina da semana</h2></div>
+            <div class="daily-plan-filters">
+              <label>Semana<select id="dailyWeekFilter"></select></label>
+              <label>Dia da semana
+                <select id="dailyDayFilter">
+                  <option value="">Todos os dias</option>
+                  <option value="0">Segunda-feira</option>
+                  <option value="1">Terça-feira</option>
+                  <option value="2">Quarta-feira</option>
+                  <option value="3">Quinta-feira</option>
+                  <option value="4">Sexta-feira</option>
+                </select>
+              </label>
+              <div id="dailyPromanPlantFilter" class="daily-office-filter daily-proman-filter multi-select">
+                <span class="daily-filter-label">PROMAN</span>
+                <button id="dailyPromanPlantFilterButton" type="button" class="multi-select-button" aria-expanded="false">Todas</button>
+                <div id="dailyPromanPlantFilterMenu" class="multi-select-menu" hidden>
+                  <label class="multi-option all-option"><input id="dailyPromanPlantFilterAll" type="checkbox" checked> <span>Todas</span></label>
+                  <div id="dailyPromanPlantFilterOptions">
+                    <label class="multi-option"><input type="checkbox" value="britagem"> <span>Britagem</span></label>
+                    <label class="multi-option"><input type="checkbox" value="fabrica"> <span>Fábrica</span></label>
+                  </div>
+                </div>
+              </div>
+              <div id="dailyOfficeFilter" class="daily-office-filter multi-select">
+                <span class="daily-filter-label">Oficina</span>
+                <button id="dailyOfficeFilterButton" type="button" class="multi-select-button" aria-expanded="false">Todas as oficinas</button>
+                <div id="dailyOfficeFilterMenu" class="multi-select-menu" hidden>
+                  <label class="multi-option all-option"><input id="dailyOfficeFilterAll" type="checkbox" checked> <span>Todas as oficinas</span></label>
+                  <div id="dailyOfficeFilterOptions"></div>
+                </div>
+              </div>
+              <button id="btnDailyOpenProject" type="button" class="daily-open-project" title="Abrir um PSM salvo anteriormente">ABRIR PSM</button>
+              <button id="btnDailyTv" type="button" class="daily-tv-button" aria-pressed="false" title="Apresentar a programação ocupando toda a tela">⛶ Apresentar na TV</button>
+            </div>
+          </div>
+          <div id="dailyPlanGrid" class="daily-plan-grid"></div>
+        </article>
+        <button id="btnExitDailyTv" type="button" class="daily-tv-exit" aria-label="Sair do modo TV">× Sair do modo TV</button>
+      </section>
+
+      <section id="quadroView" class="view">
+        <article class="panel qpp-board-panel">
+          <div class="panel-title qpp-board-title">
+            <div><h2>QUADRO QPP · Mapa de 52 semanas</h2></div>
+            <div class="qpp-board-actions">
+              <button id="btnPrevQppWeek" type="button" class="ghost">◀ Anterior</button>
+              <div id="qppWeekMulti" class="qpp-week-multi">
+                <span>Selecionar semanas</span>
+                <button id="qppWeekFilterButton" type="button" class="ghost" aria-expanded="false">Todas as semanas</button>
+                <div id="qppWeekFilterMenu" class="qpp-week-filter-menu" hidden>
+                  <label class="qpp-week-option qpp-week-option-all"><input id="qppWeekAll" type="checkbox" checked> <strong>Todas as semanas</strong></label>
+                  <div id="qppWeekOptions"></div>
+                </div>
+              </div>
+              <button id="btnNextQppWeek" type="button" class="ghost">Próxima ▶</button>
+              <button id="btnHideQppWeek" type="button" class="ghost" data-presentation-only>Ocultar semana atual</button>
+              <button id="btnShowHiddenWeeks" type="button" class="ghost" data-presentation-only>Mostrar ocultas</button>
+              <button id="btnPrintQpp" type="button" class="ghost">🖨 Imprimir</button><button id="btnResetQppBoard" type="button" class="danger ghost" data-presentation-only>Restaurar modelo</button>
+            </div>
+          </div>
+          <div id="qppBoardSummary" class="qpp-board-summary"></div>
+          <div id="qppBoardScroller" class="qpp-board-scroller"></div>
+        </article>
+      </section>
+
+      <section id="ataFabView" class="view">
+        <article class="meeting-page" data-meeting-key="fab"><div id="ataFabContent"></div></article>
+      </section>
+      <section id="ataBritView" class="view">
+        <article class="meeting-page" data-meeting-key="brit"><div id="ataBritContent"></div></article>
+      </section>
+
+      <section id="promanView" class="view">
+        <article class="panel proman-shell">
+          <header class="proman-heading">
+            <div>
+              <span class="proman-eyebrow">GESTÃO DE AÇÕES DE MANUTENÇÃO</span>
+              <h2>REUNIÃO PROMAN</h2>
+              <p>ACOMPANHE AS AÇÕES DE BRITAGEM E FÁBRICA EM PAINÉIS INDEPENDENTES.</p>
+            </div>
+            <div class="proman-tabs" role="tablist" aria-label="Bases PROMAN">
+              <button id="promanTabBritagem" class="proman-tab active" type="button" data-proman-tab="britagem" role="tab" aria-selected="true">BRITAGEM</button>
+              <button id="promanTabFabrica" class="proman-tab" type="button" data-proman-tab="fabrica" role="tab" aria-selected="false">FÁBRICA</button>
+            </div>
+          </header>
+
+          <div class="proman-filters" aria-label="Filtros PROMAN">
+            <label class="proman-search"><span>PESQUISAR</span><input id="promanSearch" type="search" placeholder="TAG, ATIVIDADE, RESPONSÁVEL OU OS..." /></label>
+            <div class="proman-filter-field"><span>STATUS</span><div id="promanStatusFilter" class="proman-multi-select" data-proman-multi="panel-status"><button type="button" class="proman-multi-button" aria-expanded="false">TODOS OS STATUS</button><div class="proman-multi-menu" hidden><label class="proman-multi-option proman-multi-all"><input type="checkbox" data-proman-all checked><strong>TODOS OS STATUS</strong></label><div class="proman-multi-options"></div></div></div></div>
+            <div class="proman-filter-field"><span>ANO</span><div id="promanYearFilter" class="proman-multi-select" data-proman-multi="panel-year"><button type="button" class="proman-multi-button" aria-expanded="false">TODOS OS ANOS</button><div class="proman-multi-menu" hidden><label class="proman-multi-option proman-multi-all"><input type="checkbox" data-proman-all checked><strong>TODOS OS ANOS</strong></label><div class="proman-multi-options"></div></div></div></div>
+            <button id="btnPromanClearFilters" type="button" class="ghost">LIMPAR FILTROS</button>
+          </div>
+
+          <div class="proman-kpis">
+            <article><span>TOTAL DE AÇÕES</span><strong id="promanKpiTotal">0</strong><small>REGISTROS FILTRADOS</small></article>
+            <article><span>CONCLUÍDAS</span><strong id="promanKpiCompleted">0</strong><small id="promanKpiCompletedPct">0% DO TOTAL</small></article>
+            <article><span>EM ABERTO</span><strong id="promanKpiOpen">0</strong><small>NO PRAZO OU ATRASADAS</small></article>
+            <article><span>ATRASADAS</span><strong id="promanKpiOverdue">0</strong><small>PRAZO VENCIDO</small></article>
+            <article><span>COM NOTA / OS</span><strong id="promanKpiWithOs">0</strong><small id="promanKpiWithOsPct">0% DO TOTAL</small></article>
+          </div>
+
+          <div class="proman-chart-grid">
+            <article class="proman-chart-card"><h3>DISTRIBUIÇÃO POR STATUS</h3><canvas id="promanStatusChart"></canvas></article>
+            <article class="proman-chart-card"><h3>AÇÕES POR MÊS</h3><canvas id="promanMonthlyChart"></canvas></article>
+            <article class="proman-chart-card"><h3>TOP RESPONSÁVEIS</h3><canvas id="promanOwnersChart"></canvas></article>
+            <article class="proman-chart-card"><h3>CONCENTRAÇÃO POR ÁREA / TAG</h3><canvas id="promanTagsChart"></canvas></article>
+          </div>
+
+          <article class="proman-table-panel">
+            <div class="proman-table-heading"><h3>DETALHAMENTO DAS AÇÕES</h3><span id="promanTableCount">0 REGISTROS</span></div>
+            <div class="proman-table-wrap">
+              <table class="proman-table">
+                <thead><tr><th>DATA</th><th>TAG</th><th>O QUE</th><th>QUEM</th><th>PRAZO</th><th>STATUS</th><th>TIPO</th><th>NOTA / OS</th><th>OBSERVAÇÕES</th></tr></thead>
+                <tbody id="promanTableBody"></tbody>
+              </table>
+            </div>
+            <div class="proman-pagination"><button id="promanPrevPage" type="button" class="ghost">ANTERIOR</button><span id="promanPageInfo">PÁGINA 1</span><button id="promanNextPage" type="button" class="ghost">PRÓXIMA</button></div>
+          </article>
+        </article>
+      </section>
+
+      <section id="promanImportView" class="view">
+        <article class="panel imports-panel proman-imports-panel">
+          <header class="proman-section-heading">
+            <div><span>REUNIÃO PROMAN</span><h2>IMPORTAÇÕES</h2><p>GERENCIE AS PLANILHAS DE BRITAGEM E FÁBRICA EM UM ÚNICO LUGAR.</p></div>
+          </header>
+          <div class="imports-grid proman-imports-grid">
+            <section class="import-card proman-import-card">
+              <div class="import-card-heading"><span class="import-card-icon">⇧</span><div><h3>PROMAN BRITAGEM</h3><p>Importa a planilha de britagem e atualiza o painel e o Backlog PROMAN.</p></div></div>
+              <strong id="promanImportBritagemStatus" class="proman-import-status">NENHUMA PLANILHA IMPORTADA</strong>
+              <div class="import-card-actions"><label class="file-button proman-file-button">IMPORTAR BRITAGEM<input id="promanImportBritagemInput" type="file" accept=".xlsx,.xlsm,.xlsb,.xls" hidden /></label><button id="btnPromanExportBritagem" type="button" class="ghost">EXPORTAR DADOS</button><button id="btnPromanClearBritagem" type="button" class="danger ghost">LIMPAR BASE</button></div>
+            </section>
+            <section class="import-card proman-import-card proman-import-factory-card">
+              <div class="import-card-heading"><span class="import-card-icon">⇧</span><div><h3>PROMAN FÁBRICA</h3><p>Importa a planilha da fábrica e atualiza o painel e o Backlog PROMAN.</p></div></div>
+              <strong id="promanImportFabricaStatus" class="proman-import-status">NENHUMA PLANILHA IMPORTADA</strong>
+              <div class="import-card-actions"><label class="file-button proman-file-button">IMPORTAR FÁBRICA<input id="promanImportFabricaInput" type="file" accept=".xlsx,.xlsm,.xlsb,.xls" hidden /></label><button id="btnPromanExportFabrica" type="button" class="ghost">EXPORTAR DADOS</button><button id="btnPromanClearFabrica" type="button" class="danger ghost">LIMPAR BASE</button></div>
+            </section>
+          </div>
+          <p class="proman-import-note">Todas as atividades importadas são enviadas automaticamente ao Backlog PROMAN, independentemente do status.</p>
+        </article>
+      </section>
+
+      <section id="promanAddView" class="view">
+        <article class="panel proman-editor-shell">
+          <header class="proman-section-heading">
+            <div><span>REUNIÃO PROMAN</span><h2 id="promanFormTitle">ADICIONAR ATIVIDADE</h2><p>CADASTRE UMA NOVA AÇÃO PARA BRITAGEM OU FÁBRICA. ELA ENTRARÁ NO PAINEL E NO BACKLOG PROMAN.</p></div>
+            <button id="btnPromanOpenBacklog" type="button" class="ghost">VER BACKLOG</button>
+          </header>
+          <form id="promanActivityForm" class="proman-activity-form">
+            <input id="promanActivityId" type="hidden" />
+            <div class="proman-form-grid">
+              <label class="proman-featured-field">UNIDADE<select id="promanActivityPlant" required><option value="britagem">BRITAGEM</option><option value="fabrica">FÁBRICA</option></select></label>
+              <label class="proman-featured-field">DATA<input id="promanActivityDate" type="date" required /></label>
+              <label class="proman-featured-field">TAG<input id="promanActivityTag" required placeholder="EX.: R1J01" autocomplete="off" /></label>
+              <label class="proman-featured-field">RESPONSÁVEL<input id="promanActivityWho" required placeholder="QUEM EXECUTARÁ" autocomplete="off" /></label>
+              <label class="proman-featured-field proman-form-wide">O QUE SERÁ FEITO<textarea id="promanActivityWhat" rows="3" required placeholder="DESCREVA A ATIVIDADE"></textarea></label>
+              <label>PRAZO<input id="promanActivityDeadline" type="date" required /></label>
+              <label>STATUS<select id="promanActivityStatus"><option>NO PRAZO</option><option>EM ANDAMENTO</option><option>PENDENTE</option><option>ATRASADA</option><option>CONCLUÍDA</option><option>CANCELADA</option></select></label>
+              <label>TIPO DE ATIVIDADE<select id="promanActivityType"><option>NÃO</option><option>SEGURANÇA</option><option>OPORTUNIDADE</option><option>CORRETIVA</option></select></label>
+              <label>NOTA / OS<input id="promanActivityOs" inputmode="numeric" autocomplete="off" /></label>
+              <label class="proman-form-wide">OBSERVAÇÕES<textarea id="promanActivityNotes" rows="4" placeholder="INFORMAÇÕES COMPLEMENTARES"></textarea></label>
+            </div>
+            <div class="proman-form-actions"><button id="btnPromanCancelEdit" type="button" class="ghost">CANCELAR</button><button type="submit">SALVAR ATIVIDADE</button></div>
+          </form>
+        </article>
+      </section>
+
+      <section id="promanBacklogView" class="view">
+        <article class="panel proman-backlog-shell">
+          <header class="proman-section-heading">
+            <div><span>REUNIÃO PROMAN</span><h2>BACKLOG DE ATIVIDADES</h2><p>ACOMPANHE, EDITE OU EXCLUA AS AÇÕES IMPORTADAS E CADASTRADAS MANUALMENTE.</p></div>
+            <div class="proman-backlog-header-actions">
+              <button id="btnPromanBacklogSaveProject" type="button" data-presentation-only>SALVAR PSM</button>
+              <button id="btnPromanBacklogOpenProject" type="button">ABRIR PSM</button>
+              <button id="btnPromanBacklogExport" type="button" class="proman-backlog-export">EXPORTAR EXCEL</button>
+              <button id="btnPromanBacklogTheme" type="button" class="proman-header-icon" title="Alternar tema" aria-label="Alternar tema">◐</button>
+              <button id="btnPromanBacklogFullscreen" type="button" class="proman-header-icon" title="Tela cheia" aria-label="Tela cheia">⛶</button>
+              <button id="btnPromanNewFromBacklog" type="button" data-presentation-only>＋ NOVA ATIVIDADE</button>
+            </div>
+          </header>
+          <div class="proman-backlog-filters">
+            <div class="proman-filter-field"><span>UNIDADE</span><div id="promanBacklogPlant" class="proman-multi-select" data-proman-multi="backlog-plant"><button type="button" class="proman-multi-button" aria-expanded="false">TODAS</button><div class="proman-multi-menu" hidden><label class="proman-multi-option proman-multi-all"><input type="checkbox" data-proman-all checked><strong>TODAS</strong></label><div class="proman-multi-options"></div></div></div></div>
+            <label class="proman-backlog-search">PESQUISAR<input id="promanBacklogSearch" type="search" placeholder="TAG, ATIVIDADE, RESPONSÁVEL OU OS" /></label>
+            <div class="proman-filter-field"><span>STATUS</span><div id="promanBacklogStatus" class="proman-multi-select" data-proman-multi="backlog-status"><button type="button" class="proman-multi-button" aria-expanded="false">TODOS OS STATUS</button><div class="proman-multi-menu" hidden><label class="proman-multi-option proman-multi-all"><input type="checkbox" data-proman-all checked><strong>TODOS OS STATUS</strong></label><div class="proman-multi-options"></div></div></div></div>
+            <div class="proman-filter-field"><span>TIPO</span><div id="promanBacklogType" class="proman-multi-select" data-proman-multi="backlog-type"><button type="button" class="proman-multi-button" aria-expanded="false">TODOS OS TIPOS</button><div class="proman-multi-menu" hidden><label class="proman-multi-option proman-multi-all"><input type="checkbox" data-proman-all checked><strong>TODOS OS TIPOS</strong></label><div class="proman-multi-options"></div></div></div></div>
+            <button id="btnPromanBacklogClearFilters" type="button" class="ghost">LIMPAR FILTROS</button>
+          </div>
+          <div class="proman-backlog-kpis">
+            <article><span>ATIVIDADES ADICIONADAS</span><strong id="promanBacklogTotal">0</strong></article>
+            <article><span>EM ABERTO</span><strong id="promanBacklogOpen">0</strong></article>
+            <article><span>ATRASADAS</span><strong id="promanBacklogOverdue">0</strong></article>
+          </div>
+          <div class="proman-backlog-table-wrap">
+            <table class="proman-backlog-table">
+              <thead><tr><th>#</th><th>UNIDADE</th><th>DATA</th><th>TAG</th><th>O QUE</th><th>QUEM</th><th>PRAZO</th><th>STATUS</th><th>TIPO</th><th>NOTA / OS</th><th>OBSERVAÇÕES</th><th>AÇÕES</th></tr></thead>
+              <tbody id="promanBacklogBody"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
+      <section id="promanAtaFabricaView" class="view">
+        <article class="meeting-page" data-meeting-key="promanFab"><div id="promanAtaFabricaContent"></div></article>
+      </section>
+      <section id="promanAtaBritagemView" class="view">
+        <article class="meeting-page" data-meeting-key="promanBrit"><div id="promanAtaBritagemContent"></div></article>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="activityDialog">
+    <form id="activityForm" method="dialog">
+      <div class="dialog-header"><div><h2 id="dialogTitle">Nova atividade</h2><p>Atividades manuais entram imediatamente nos indicadores.</p></div><button type="button" id="btnCloseDialog" class="icon-button">×</button></div>
+      <input type="hidden" id="activityId" />
+      <input type="hidden" id="activitySource" value="manual" />
+      <div class="form-grid">
+        <label class="activity-primary-field">Ordem<input id="fOrdem" required /></label>
+        <label class="activity-primary-field">Descrição<input id="fDescricao" required /></label>
+        <label class="activity-primary-field">Área / Localização<input id="fArea" list="areasList" /></label>
+        <label class="activity-primary-field">Oficina<input id="fOficina" list="oficinasList" autocapitalize="characters" spellcheck="false" /></label>
+        <label class="activity-primary-field">Equipamento / TAG<input id="fEquipamento" /></label>
+        <label class="activity-primary-field">Classificação<select id="fQpp"><option selected>Não</option><option>Rotina</option><option>QPP</option><option>PRIOR</option><option>EXEC</option><option>REPR</option></select></label>
+        <label class="activity-primary-field">Tipo da ordem<select id="fTipoOrdem"><option selected>NÃO SISTEMÁTICA</option><option>SISTEMÁTICA</option></select></label>
+        <label class="activity-primary-field">Duração (h)<input id="fDuracao" type="number" min="0" step="0.01" value="0" /></label>
+        <label class="activity-primary-field">Mão de obra<input id="fMO" type="number" min="0" step="1" inputmode="numeric" value="1" /></label>
+        <label class="activity-primary-field">Custo (R$)<input id="fCusto" type="number" min="0" step="0.01" value="0" /></label>
+        <label>HH calculado<input id="fHH" type="text" readonly value="0,0 HH" title="Duração × Mão de obra" /></label>
+        <label>Grupo planejador<input id="fGrupo" /></label>
+        <label>Criticidade<input id="fCriticidade" /></label>
+        <label>Prioridade<input id="fPrioridade" /></label>
+        <label>Status<input id="fStatus" value="Planejada" /></label>
+        <label class="full">Observações<textarea id="fObs" rows="3"></textarea></label>
+      </div>
+      <datalist id="areasList"></datalist><datalist id="oficinasList"></datalist>
+      <div class="dialog-actions"><button type="button" id="btnCancelDialog" class="ghost">Cancelar</button><button type="submit">Salvar atividade</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="bulkOrdersDialog" class="bulk-orders-dialog">
+    <div class="dialog-header">
+      <div>
+        <h2>Adicionar ordens sistemáticas em massa</h2>
+        <p>Cole os números das ordens. Somente as encontradas no catálogo SISTEMÁTICAS serão incluídas automaticamente.</p>
+      </div>
+      <button type="button" id="btnCloseBulkOrders" class="icon-button">×</button>
+    </div>
+    <div class="bulk-catalog-summary">
+      <strong id="bulkCatalogStatus">Catálogo SISTEMÁTICAS não carregado</strong>
+      <span>As ordens deste catálogo não entram no backlog até serem selecionadas aqui.</span>
+    </div>
+    <label class="bulk-orders-input">Números das ordens
+      <textarea id="bulkOrdersInput" rows="7" placeholder="Exemplo:&#10;160230336&#10;160230406&#10;160234432"></textarea>
+    </label>
+    <div class="bulk-order-actions">
+      <button type="button" id="btnClearBulkOrders" class="ghost">Limpar</button>
+      <button type="button" id="btnProcessBulkOrders">Buscar e adicionar</button>
+    </div>
+    <div id="bulkOrdersResult" class="bulk-orders-result" aria-live="polite"></div>
+  </dialog>
+
+
+  <dialog id="capacityDialog" class="capacity-dialog">
+    <div class="dialog-header">
+      <div><h2>HH disponível</h2><p>Cadastre a capacidade por área e oficina. Os cálculos do dashboard serão atualizados automaticamente.</p></div>
+      <button type="button" id="btnCloseCapacity" class="icon-button">×</button>
+    </div>
+    <form id="capacityForm" class="capacity-form">
+      <input type="hidden" id="cEditIndex" value="" />
+      <label>Área / Localização<input id="cArea" list="areasList" required placeholder="Ex.: 05W1" /></label>
+      <label>Oficina<input id="cOficina" list="oficinasList" required placeholder="Ex.: MM-MEC" /></label>
+      <label>Quantidade de pessoas<input id="cPeople" type="number" min="0" step="1" required placeholder="0" /></label>
+      <label>HH normal por pessoa<input id="cNormalHH" type="text" inputmode="decimal" required placeholder="0,00" /></label>
+      <label>HH disponível calculado<input id="cHH" type="text" readonly value="0,0 HH" title="Quantidade de pessoas × HH normal" /></label>
+      <button id="btnSubmitCapacity" type="submit">Adicionar HH</button>
+      <button id="btnCancelCapacityEdit" type="button" class="ghost capacity-cancel-edit" hidden>Cancelar edição</button>
+    </form>
+    <div class="capacity-summary">
+      <span>Total cadastrado</span><strong id="capacityTotal">0</strong>
+    </div>
+    <div class="capacity-table-wrap">
+      <table>
+        <thead><tr><th>Área · gráfico</th><th>Oficina</th><th>Pessoas</th><th>HH normal</th><th>HH disponível</th><th>Ações</th></tr></thead>
+        <tbody id="capacityBody"></tbody>
+      </table>
+    </div>
+    <div class="dialog-actions">
+      <button type="button" id="btnClearCapacity" class="danger ghost">Limpar todos</button>
+      <button type="button" id="btnDoneCapacity">Concluir</button>
+    </div>
+  </dialog>
+
+  <div id="toast" role="status"></div>
+  <script src="js/core/storage.js?v=2.13.3"></script>
+  <script src="js/modules/project.js?v=2.13.3"></script>
+  <script src="js/modules/report.js?v=2.13.0"></script>
+  <script src="js/modules/proman.js?v=2.13.0"></script>
+<script src="js/app.js?v=2.13.3"></script>
+</body>
+</html>
