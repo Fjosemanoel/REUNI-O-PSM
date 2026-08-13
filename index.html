@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>PSM Analytics Pro</title>
   <link rel="preconnect" href="https://cdn.jsdelivr.net" />
-  <link rel="stylesheet" href="css/style.css?v=2.13.3" />
+  <link rel="stylesheet" href="css/style.css?v=2.17.3" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
@@ -29,12 +29,79 @@
           <span class="mode-choice-icon" aria-hidden="true">◆</span>
           <strong>Apresentação</strong>
           <small>Acesso completo a todas as telas, cadastros, importações, edições e relatórios atuais.</small>
-          <em>Entrar com acesso completo</em>
+          <em>Acessar apresentação</em>
         </button>
       </div>
+      <div class="mode-admin-link"><button id="btnOpenUserAdmin" type="button" class="ghost">Área do administrador</button></div>
       <p class="mode-gate-note">Os dois modos utilizam o mesmo projeto e os mesmos dados salvos.</p>
     </div>
   </section>
+
+  <dialog id="presentationAccessChoiceDialog" class="access-dialog access-choice-dialog">
+    <section class="access-choice-panel">
+      <header><div><span>APRESENTAÇÃO</span><h2>Escolha como deseja entrar</h2></div><button type="button" class="dialog-close" data-close-dialog="presentationAccessChoiceDialog" aria-label="Fechar">×</button></header>
+      <div class="access-choice-actions">
+        <button id="btnCorporateAccess" type="button"><strong>Email corporativo</strong><small>Use seu email corporativo</small></button>
+        <button id="btnCommonUserAccess" type="button" class="secondary"><strong>Usuário comum</strong><small>Entre com login e senha cadastrados pelo administrador</small></button>
+      </div>
+    </section>
+  </dialog>
+
+  <dialog id="presentationLoginDialog" class="access-dialog">
+    <form id="presentationLoginForm" method="dialog" class="access-form">
+      <header><div><span>ACESSO CORPORATIVO</span><h2>Entrar na Apresentação</h2></div><button type="button" class="dialog-close" data-close-dialog="presentationLoginDialog" aria-label="Fechar">×</button></header>
+      <label>DIGITE SEU EMAIL CORPORATIVO<input id="presentationEmail" type="email" autocomplete="email" placeholder="nome@vcimentos.com" required /></label>
+      <p id="presentationLoginError" class="access-error" role="alert" hidden></p>
+      <button type="submit">ENTRAR</button>
+    </form>
+  </dialog>
+
+  <dialog id="commonUserLoginDialog" class="access-dialog">
+    <form id="commonUserLoginForm" class="access-form">
+      <header><div><span>USUÁRIO CADASTRADO</span><h2>Entrar com login</h2></div><button type="button" class="dialog-close" data-close-dialog="commonUserLoginDialog" aria-label="Fechar">×</button></header>
+      <label>USUÁRIO<input id="commonLoginUsername" autocomplete="username" required /></label>
+      <label>SENHA<input id="commonLoginPassword" type="password" autocomplete="current-password" required /></label>
+      <p id="commonLoginError" class="access-error" role="alert" hidden></p>
+      <button type="submit">ENTRAR</button>
+    </form>
+  </dialog>
+
+  <dialog id="userAdminDialog" class="access-dialog access-admin-dialog">
+    <section id="adminLoginSection">
+      <form id="adminLoginForm" class="access-form">
+        <header><div><span>ADMINISTRAÇÃO</span><h2>Área do administrador</h2></div><button type="button" class="dialog-close" data-close-dialog="userAdminDialog" aria-label="Fechar">×</button></header>
+        <p>Entre com uma conta de administrador.</p>
+        <label>USUÁRIO<input id="adminLoginUsername" autocomplete="username" required /></label>
+        <label>SENHA<input id="adminLoginPassword" type="password" autocomplete="current-password" required /></label>
+        <p id="adminLoginError" class="access-error" role="alert" hidden></p>
+        <button type="submit">ENTRAR COMO ADMINISTRADOR</button>
+      </form>
+    </section>
+    <section id="adminPanelSection" class="admin-panel" hidden>
+      <header><div><span>ADMINISTRAÇÃO</span><h2>Usuários com acesso</h2></div><button type="button" class="dialog-close" data-close-dialog="userAdminDialog" aria-label="Fechar">×</button></header>
+      <form id="adminUserForm" class="admin-user-form">
+        <input id="adminEditingUserId" type="hidden" />
+        <label>USUÁRIO<input id="adminUserName" autocomplete="off" required /></label>
+        <label>SENHA<input id="adminUserPassword" type="password" autocomplete="new-password" placeholder="Obrigatória para novo usuário" /></label>
+        <label>TIPO DE ACESSO<select id="adminUserRole"><option value="user">USUÁRIO COMUM</option><option value="admin">ADMINISTRADOR</option></select></label>
+        <div><button id="btnCancelUserEdit" type="button" class="ghost" hidden>CANCELAR</button><button type="submit">SALVAR USUÁRIO</button></div>
+      </form>
+      <p id="adminUserMessage" class="access-error" role="status" hidden></p>
+      <div class="admin-user-list-wrap"><table class="admin-user-list"><thead><tr><th>USUÁRIO</th><th>ACESSO</th><th>AÇÕES</th></tr></thead><tbody id="adminUserListBody"></tbody></table></div>
+      <footer><small>Cadastre aqui os usuários do acesso com login e senha.</small><button id="btnAdminLogout" type="button" class="ghost">SAIR DA ADMINISTRAÇÃO</button></footer>
+    </section>
+  </dialog>
+
+  <dialog id="clearHistoryDialog" class="access-dialog">
+    <form id="clearHistoryForm" class="access-form">
+      <header><div><span>AÇÃO RESTRITA</span><h2>Limpar histórico</h2></div><button type="button" class="dialog-close" data-close-dialog="clearHistoryDialog" aria-label="Fechar">×</button></header>
+      <p>Somente um administrador pode apagar todo o histórico.</p>
+      <label>USUÁRIO ADMINISTRADOR<input id="clearHistoryUsername" autocomplete="username" required /></label>
+      <label>SENHA<input id="clearHistoryPassword" type="password" autocomplete="current-password" required /></label>
+      <p id="clearHistoryError" class="access-error" role="alert" hidden></p>
+      <button type="submit" class="danger">CONFIRMAR E LIMPAR</button>
+    </form>
+  </dialog>
 
   <div id="appShell" class="app-shell" hidden>
     <aside class="sidebar">
@@ -80,7 +147,7 @@
         <div class="top-actions">
           <button id="btnSaveProject" title="Salvar todos os dados do sistema em um arquivo PSM" data-presentation-only>Salvar PSM</button>
           <label class="file-button" title="Abrir um PSM salvo anteriormente">Abrir PSM<input id="projectFileInput" type="file" accept=".psm,.json,application/json" hidden /></label>
-          <button id="btnExport" data-presentation-only>Exportar Excel</button>
+          <button id="btnExport">Exportar Excel</button>
           <button id="btnTheme" title="Alternar tema">◐</button>
           <button id="btnFullscreen" title="Tela cheia">⛶</button>
           <button id="btnChangeModeTop" class="change-mode-top" type="button" title="Voltar à escolha de acesso">Trocar modo</button>
@@ -312,6 +379,8 @@
 
           <div class="proman-filters" aria-label="Filtros PROMAN">
             <label class="proman-search"><span>PESQUISAR</span><input id="promanSearch" type="search" placeholder="TAG, ATIVIDADE, RESPONSÁVEL OU OS..." /></label>
+            <div class="proman-filter-field"><span>UNIDADE</span><div id="promanPlantFilter" class="proman-multi-select" data-proman-multi="panel-plant"><button type="button" class="proman-multi-button" aria-expanded="false">TODAS</button><div class="proman-multi-menu" hidden><label class="proman-multi-option proman-multi-all"><input type="checkbox" data-proman-all checked><strong>TODAS</strong></label><div class="proman-multi-options"></div></div></div></div>
+            <div class="proman-filter-field"><span>SEMANA</span><div id="promanWeekFilter" class="proman-multi-select" data-proman-multi="panel-week"><button type="button" class="proman-multi-button" aria-expanded="false">TODAS AS SEMANAS</button><div class="proman-multi-menu" hidden><label class="proman-multi-option proman-multi-all"><input type="checkbox" data-proman-all checked><strong>TODAS AS SEMANAS</strong></label><div class="proman-multi-options"></div></div></div></div>
             <div class="proman-filter-field"><span>STATUS</span><div id="promanStatusFilter" class="proman-multi-select" data-proman-multi="panel-status"><button type="button" class="proman-multi-button" aria-expanded="false">TODOS OS STATUS</button><div class="proman-multi-menu" hidden><label class="proman-multi-option proman-multi-all"><input type="checkbox" data-proman-all checked><strong>TODOS OS STATUS</strong></label><div class="proman-multi-options"></div></div></div></div>
             <div class="proman-filter-field"><span>ANO</span><div id="promanYearFilter" class="proman-multi-select" data-proman-multi="panel-year"><button type="button" class="proman-multi-button" aria-expanded="false">TODOS OS ANOS</button><div class="proman-multi-menu" hidden><label class="proman-multi-option proman-multi-all"><input type="checkbox" data-proman-all checked><strong>TODOS OS ANOS</strong></label><div class="proman-multi-options"></div></div></div></div>
             <button id="btnPromanClearFilters" type="button" class="ghost">LIMPAR FILTROS</button>
@@ -330,13 +399,14 @@
             <article class="proman-chart-card"><h3>AÇÕES POR MÊS</h3><canvas id="promanMonthlyChart"></canvas></article>
             <article class="proman-chart-card"><h3>TOP RESPONSÁVEIS</h3><canvas id="promanOwnersChart"></canvas></article>
             <article class="proman-chart-card"><h3>CONCENTRAÇÃO POR ÁREA / TAG</h3><canvas id="promanTagsChart"></canvas></article>
+            <article class="proman-chart-card"><h3>TIPO DE ATIVIDADE</h3><canvas id="promanTypeChart"></canvas></article>
           </div>
 
           <article class="proman-table-panel">
             <div class="proman-table-heading"><h3>DETALHAMENTO DAS AÇÕES</h3><span id="promanTableCount">0 REGISTROS</span></div>
             <div class="proman-table-wrap">
               <table class="proman-table">
-                <thead><tr><th>DATA</th><th>TAG</th><th>O QUE</th><th>QUEM</th><th>PRAZO</th><th>STATUS</th><th>TIPO</th><th>NOTA / OS</th><th>OBSERVAÇÕES</th></tr></thead>
+                <thead><tr><th>UNIDADE</th><th>DATA</th><th>TAG</th><th>O QUE</th><th>QUEM</th><th>PRAZO</th><th>DATA DE CONCLUSÃO</th><th>STATUS</th><th>TIPO</th><th>NOTA / OS</th><th>OBSERVAÇÕES</th></tr></thead>
                 <tbody id="promanTableBody"></tbody>
               </table>
             </div>
@@ -381,8 +451,9 @@
               <label class="proman-featured-field">RESPONSÁVEL<input id="promanActivityWho" required placeholder="QUEM EXECUTARÁ" autocomplete="off" /></label>
               <label class="proman-featured-field proman-form-wide">O QUE SERÁ FEITO<textarea id="promanActivityWhat" rows="3" required placeholder="DESCREVA A ATIVIDADE"></textarea></label>
               <label>PRAZO<input id="promanActivityDeadline" type="date" required /></label>
+              <label>DATA DE CONCLUSÃO<input id="promanActivityCompletionDate" type="date" /></label>
               <label>STATUS<select id="promanActivityStatus"><option>NO PRAZO</option><option>EM ANDAMENTO</option><option>PENDENTE</option><option>ATRASADA</option><option>CONCLUÍDA</option><option>CANCELADA</option></select></label>
-              <label>TIPO DE ATIVIDADE<select id="promanActivityType"><option>NÃO</option><option>SEGURANÇA</option><option>OPORTUNIDADE</option><option>CORRETIVA</option></select></label>
+              <label>TIPO DE ATIVIDADE<span class="proman-type-field"><select id="promanActivityType"><option>NÃO</option><option>SEGURANÇA</option><option>OPORTUNIDADE</option><option>CORRETIVA</option></select><button id="btnManagePromanTypes" type="button" class="ghost">GERENCIAR TIPOS</button></span></label>
               <label>NOTA / OS<input id="promanActivityOs" inputmode="numeric" autocomplete="off" /></label>
               <label class="proman-form-wide">OBSERVAÇÕES<textarea id="promanActivityNotes" rows="4" placeholder="INFORMAÇÕES COMPLEMENTARES"></textarea></label>
             </div>
@@ -407,6 +478,8 @@
           <div class="proman-backlog-filters">
             <div class="proman-filter-field"><span>UNIDADE</span><div id="promanBacklogPlant" class="proman-multi-select" data-proman-multi="backlog-plant"><button type="button" class="proman-multi-button" aria-expanded="false">TODAS</button><div class="proman-multi-menu" hidden><label class="proman-multi-option proman-multi-all"><input type="checkbox" data-proman-all checked><strong>TODAS</strong></label><div class="proman-multi-options"></div></div></div></div>
             <label class="proman-backlog-search">PESQUISAR<input id="promanBacklogSearch" type="search" placeholder="TAG, ATIVIDADE, RESPONSÁVEL OU OS" /></label>
+            <div class="proman-filter-field"><span>SEMANA</span><div id="promanBacklogWeek" class="proman-multi-select" data-proman-multi="backlog-week"><button type="button" class="proman-multi-button" aria-expanded="false">TODAS AS SEMANAS</button><div class="proman-multi-menu" hidden><label class="proman-multi-option proman-multi-all"><input type="checkbox" data-proman-all checked><strong>TODAS AS SEMANAS</strong></label><div class="proman-multi-options"></div></div></div></div>
+            <div class="proman-filter-field"><span>ANO</span><div id="promanBacklogYear" class="proman-multi-select" data-proman-multi="backlog-year"><button type="button" class="proman-multi-button" aria-expanded="false">TODOS OS ANOS</button><div class="proman-multi-menu" hidden><label class="proman-multi-option proman-multi-all"><input type="checkbox" data-proman-all checked><strong>TODOS OS ANOS</strong></label><div class="proman-multi-options"></div></div></div></div>
             <div class="proman-filter-field"><span>STATUS</span><div id="promanBacklogStatus" class="proman-multi-select" data-proman-multi="backlog-status"><button type="button" class="proman-multi-button" aria-expanded="false">TODOS OS STATUS</button><div class="proman-multi-menu" hidden><label class="proman-multi-option proman-multi-all"><input type="checkbox" data-proman-all checked><strong>TODOS OS STATUS</strong></label><div class="proman-multi-options"></div></div></div></div>
             <div class="proman-filter-field"><span>TIPO</span><div id="promanBacklogType" class="proman-multi-select" data-proman-multi="backlog-type"><button type="button" class="proman-multi-button" aria-expanded="false">TODOS OS TIPOS</button><div class="proman-multi-menu" hidden><label class="proman-multi-option proman-multi-all"><input type="checkbox" data-proman-all checked><strong>TODOS OS TIPOS</strong></label><div class="proman-multi-options"></div></div></div></div>
             <button id="btnPromanBacklogClearFilters" type="button" class="ghost">LIMPAR FILTROS</button>
@@ -418,7 +491,7 @@
           </div>
           <div class="proman-backlog-table-wrap">
             <table class="proman-backlog-table">
-              <thead><tr><th>#</th><th>UNIDADE</th><th>DATA</th><th>TAG</th><th>O QUE</th><th>QUEM</th><th>PRAZO</th><th>STATUS</th><th>TIPO</th><th>NOTA / OS</th><th>OBSERVAÇÕES</th><th>AÇÕES</th></tr></thead>
+              <thead><tr><th>#</th><th><button type="button" class="proman-sort-button" data-proman-backlog-sort="plant">UNIDADE <span class="proman-sort-icon">↕</span></button></th><th><button type="button" class="proman-sort-button" data-proman-backlog-sort="date">DATA <span class="proman-sort-icon">↓</span></button></th><th><button type="button" class="proman-sort-button" data-proman-backlog-sort="tag">TAG <span class="proman-sort-icon">↕</span></button></th><th><button type="button" class="proman-sort-button" data-proman-backlog-sort="what">O QUE <span class="proman-sort-icon">↕</span></button></th><th><button type="button" class="proman-sort-button" data-proman-backlog-sort="who">QUEM <span class="proman-sort-icon">↕</span></button></th><th><button type="button" class="proman-sort-button" data-proman-backlog-sort="deadline">PRAZO <span class="proman-sort-icon">↕</span></button></th><th><button type="button" class="proman-sort-button" data-proman-backlog-sort="completionDate">DATA DE CONCLUSÃO <span class="proman-sort-icon">↕</span></button></th><th><button type="button" class="proman-sort-button" data-proman-backlog-sort="status">STATUS <span class="proman-sort-icon">↕</span></button></th><th><button type="button" class="proman-sort-button" data-proman-backlog-sort="activityType">TIPO <span class="proman-sort-icon">↕</span></button></th><th><button type="button" class="proman-sort-button" data-proman-backlog-sort="os">NOTA / OS <span class="proman-sort-icon">↕</span></button></th><th><button type="button" class="proman-sort-button" data-proman-backlog-sort="notes">OBSERVAÇÕES <span class="proman-sort-icon">↕</span></button></th><th>AÇÕES</th></tr></thead>
               <tbody id="promanBacklogBody"></tbody>
             </table>
           </div>
@@ -460,6 +533,16 @@
       <datalist id="areasList"></datalist><datalist id="oficinasList"></datalist>
       <div class="dialog-actions"><button type="button" id="btnCancelDialog" class="ghost">Cancelar</button><button type="submit">Salvar atividade</button></div>
     </form>
+  </dialog>
+
+  <dialog id="promanTypesDialog" class="access-dialog">
+    <section class="access-form">
+      <header><div><span>PROMAN</span><h2>Gerenciar tipos de atividade</h2></div><button type="button" class="dialog-close" data-close-dialog="promanTypesDialog" aria-label="Fechar">×</button></header>
+      <form id="promanTypeManagerForm" class="proman-type-manager-form"><label>NOVO TIPO<input id="promanNewType" autocomplete="off" placeholder="DIGITE O NOME DO TIPO" required /></label><button type="submit">ADICIONAR TIPO</button></form>
+      <p id="promanTypeManagerMessage" class="access-error" role="status" hidden></p>
+      <div id="promanTypeManagerList" class="proman-type-manager-list"></div>
+      <small>Todos os tipos podem ser removidos, desde que pelo menos uma opção permaneça cadastrada.</small>
+    </section>
   </dialog>
 
   <dialog id="bulkOrdersDialog" class="bulk-orders-dialog">
@@ -516,10 +599,10 @@
   </dialog>
 
   <div id="toast" role="status"></div>
-  <script src="js/core/storage.js?v=2.13.3"></script>
-  <script src="js/modules/project.js?v=2.13.3"></script>
-  <script src="js/modules/report.js?v=2.13.0"></script>
-  <script src="js/modules/proman.js?v=2.13.0"></script>
-<script src="js/app.js?v=2.13.3"></script>
+  <script src="js/core/storage.js?v=2.17.3"></script>
+  <script src="js/modules/project.js?v=2.17.3"></script>
+  <script src="js/modules/report.js?v=2.17.3"></script>
+  <script src="js/modules/proman.js?v=2.17.3"></script>
+<script src="js/app.js?v=2.17.3"></script>
 </body>
 </html>

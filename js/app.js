@@ -13,6 +13,11 @@ function cloneFilterState(filters={}){
 }
 const state={orders:[],systematicCatalog:[],systematicCatalogMeta:{fileName:'',importedAt:'',total:0},capacity:[],capacityChartAreas:[],capacityConsumptionOffice:'',dailySelectedWeek:0,dailySelectedDay:'',dailySelectedPromanPlants:[],dailySelectedOffices:[],dailyObservations:{},history:[],qppBoard:[],meetings:{},qppBoardFilter:'all',qppSelectedWeeks:[],qppShowHidden:false,qppCurrentWeek:1,lastFilterChanged:'',activeView:'dashboard',activeFilterView:'dashboard',filters:emptyFilterState(),filtersByView:{dashboard:emptyFilterState(),ordens:emptyFilterState()},sort:{key:'',direction:'desc'},page:1,pageSize:25,charts:{}};
 let appMode='';
+const ACCESS_USERS_KEY='psm-access-users-v1';
+const ACCESS_FILTERS_KEY='psm-access-filters-v1';
+const PRESENTATION_SESSION_KEY='psm-presentation-session-v1';
+const PRESENTATION_SESSION_DURATION=24*60*60*1000;
+let activeAdminUserId='';
 const VIEWER_ALLOWED_VIEWS=new Set(['dashboard','ordens','programacao','quadro','ataFab','ataBrit','proman','promanBacklog','promanAtaFabrica','promanAtaBritagem']);
 
 // Impede que uma atualização, fechamento ou saída acidental interrompa a reunião.
@@ -96,9 +101,26 @@ function applyAccessModeUI(){
   if(badge)badge.textContent=viewer?'Visualizar':'Apresentação';
   enforceViewerControls();
 }
+function readAccessFilters(){try{return JSON.parse(localStorage.getItem(ACCESS_FILTERS_KEY))||{};}catch{return{};}}
+function saveAccessFiltersForMode(mode=appMode){
+  if(!['viewer','presentation'].includes(mode))return;
+  syncActiveFilterBank();
+  const banks=readAccessFilters();
+  banks[mode]={dashboard:cloneFilterState(state.filtersByView.dashboard),ordens:cloneFilterState(state.filtersByView.ordens)};
+  localStorage.setItem(ACCESS_FILTERS_KEY,JSON.stringify(banks));
+}
+function loadAccessFiltersForMode(mode){
+  const saved=readAccessFilters()[mode];
+  state.filtersByView={dashboard:cloneFilterState(saved?.dashboard),ordens:cloneFilterState(saved?.ordens)};
+  state.filters=cloneFilterState(state.filtersByView[state.activeFilterView]||state.filtersByView.dashboard);
+  state.page=1;
+  const search=$('#globalSearch');if(search)search.value=state.filters.search;
+}
 function activateAppMode(mode){
   if(!['viewer','presentation'].includes(mode))return;
   appMode=mode;
+  loadAccessFiltersForMode(mode);
+  window.PSMProMan?.setAccessMode?.(mode);
   document.querySelectorAll('dialog[open]').forEach(dialog=>dialog.close?.());
   $('#modeGate').hidden=true;
   $('#appShell').hidden=false;
@@ -111,16 +133,149 @@ function activateAppMode(mode){
 }
 function showModeGate(){
   if(document.fullscreenElement)document.exitFullscreen?.();
+  saveAccessFiltersForMode();
+  window.PSMProMan?.setAccessMode?.('');
   appMode='';
   delete document.body.dataset.appMode;
   $('#appShell').hidden=true;
   $('#modeGate').hidden=false;
 }
+async function hashAccessPassword(password){
+  const data=new TextEncoder().encode(String(password));
+  const digest=await crypto.subtle.digest('SHA-256',data);
+  return [...new Uint8Array(digest)].map(byte=>byte.toString(16).padStart(2,'0')).join('');
+}
+function readAccessUsers(){
+  try{const users=JSON.parse(localStorage.getItem(ACCESS_USERS_KEY));return Array.isArray(users)?users:[];}catch{return[];}
+}
+function writeAccessUsers(users){localStorage.setItem(ACCESS_USERS_KEY,JSON.stringify(users));}
+async function ensureAccessUsers(){
+  const users=readAccessUsers();
+  if(users.length)return users;
+  const initial=[{id:uid(),username:'admin',passwordHash:await hashAccessPassword('admin123'),role:'admin',createdAt:new Date().toISOString()}];
+  writeAccessUsers(initial);
+  return initial;
+}
+async function authenticateAccess(username,password,adminOnly=false){
+  const users=await ensureAccessUsers();
+  const normalized=normalize(username).toLocaleLowerCase('pt-BR');
+  const passwordHash=await hashAccessPassword(password);
+  return users.find(user=>normalize(user.username).toLocaleLowerCase('pt-BR')===normalized&&user.passwordHash===passwordHash&&(!adminOnly||user.role==='admin'))||null;
+}
+function setAccessMessage(selector,message=''){
+  const target=$(selector);if(!target)return;
+  target.textContent=message;target.hidden=!message;
+}
+function readPresentationSession(){
+  try{
+    const session=JSON.parse(localStorage.getItem(PRESENTATION_SESSION_KEY));
+    if(!Number.isFinite(Number(session?.expiresAt))||Number(session.expiresAt)<=Date.now()){
+      localStorage.removeItem(PRESENTATION_SESSION_KEY);return null;
+    }
+    if(session.kind==='corporate'&&!/^[^\s@]+@vcimentos\.com$/i.test(normalize(session.identity))){localStorage.removeItem(PRESENTATION_SESSION_KEY);return null;}
+    if(session.kind==='common'&&!readAccessUsers().some(user=>user.id===session.userId&&user.role==='user')){localStorage.removeItem(PRESENTATION_SESSION_KEY);return null;}
+    if(!['corporate','common'].includes(session.kind)){localStorage.removeItem(PRESENTATION_SESSION_KEY);return null;}
+    return session;
+  }catch{localStorage.removeItem(PRESENTATION_SESSION_KEY);return null;}
+}
+function savePresentationSession(identity,kind='corporate',userId=''){
+  localStorage.setItem(PRESENTATION_SESSION_KEY,JSON.stringify({identity:normalize(identity).toLocaleLowerCase('pt-BR'),kind,userId,authenticatedAt:Date.now(),expiresAt:Date.now()+PRESENTATION_SESSION_DURATION}));
+}
+function openPresentationAccessChoice(){
+  if(readPresentationSession()){activateAppMode('presentation');return;}
+  $('#presentationAccessChoiceDialog')?.showModal();
+}
+function openPresentationLogin(){
+  const dialog=$('#presentationLoginDialog');
+  $('#presentationLoginForm')?.reset();setAccessMessage('#presentationLoginError');
+  dialog?.showModal();setTimeout(()=>$('#presentationEmail')?.focus(),0);
+}
+function resetAdminUserForm(){
+  $('#adminUserForm')?.reset();
+  if($('#adminEditingUserId'))$('#adminEditingUserId').value='';
+  if($('#btnCancelUserEdit'))$('#btnCancelUserEdit').hidden=true;
+}
+function renderAdminUsers(){
+  const body=$('#adminUserListBody');if(!body)return;
+  const users=readAccessUsers();
+  body.innerHTML=users.map(user=>`<tr><td><strong>${escapeHtml(user.username)}</strong></td><td>${user.role==='admin'?'ADMINISTRADOR':'USUÁRIO'}</td><td><button type="button" class="ghost" data-access-edit="${escapeHtml(user.id)}">EDITAR</button><button type="button" class="danger ghost" data-access-delete="${escapeHtml(user.id)}">EXCLUIR</button></td></tr>`).join('');
+}
+function showAdminPanel(){
+  $('#adminLoginSection').hidden=true;$('#adminPanelSection').hidden=false;
+  resetAdminUserForm();setAccessMessage('#adminUserMessage');renderAdminUsers();
+}
+function openUserAdmin(){
+  activeAdminUserId='';
+  $('#adminLoginForm')?.reset();$('#adminLoginSection').hidden=false;$('#adminPanelSection').hidden=true;
+  setAccessMessage('#adminLoginError');$('#userAdminDialog')?.showModal();
+  setTimeout(()=>$('#adminLoginUsername')?.focus(),0);
+}
 function wireAccessModes(){
   $('#btnModeViewer')?.addEventListener('click',()=>activateAppMode('viewer'));
-  $('#btnModePresentation')?.addEventListener('click',()=>activateAppMode('presentation'));
+  $('#btnModePresentation')?.addEventListener('click',openPresentationAccessChoice);
+  $('#btnCorporateAccess')?.addEventListener('click',()=>{$('#presentationAccessChoiceDialog')?.close();openPresentationLogin();});
+  $('#btnCommonUserAccess')?.addEventListener('click',()=>{$('#presentationAccessChoiceDialog')?.close();$('#commonUserLoginForm')?.reset();setAccessMessage('#commonLoginError');$('#commonUserLoginDialog')?.showModal();setTimeout(()=>$('#commonLoginUsername')?.focus(),0);});
   $('#btnChangeMode')?.addEventListener('click',showModeGate);
   $('#btnChangeModeTop')?.addEventListener('click',showModeGate);
+  $('#btnOpenUserAdmin')?.addEventListener('click',openUserAdmin);
+  document.querySelectorAll('[data-close-dialog]').forEach(button=>button.addEventListener('click',()=>document.getElementById(button.dataset.closeDialog)?.close()));
+  $('#presentationLoginForm')?.addEventListener('submit',async event=>{
+    event.preventDefault();setAccessMessage('#presentationLoginError');
+    const email=normalize($('#presentationEmail').value).toLocaleLowerCase('pt-BR');
+    if(!/^[^\s@]+@vcimentos\.com$/i.test(email)){setAccessMessage('#presentationLoginError','Digite um email corporativo válido terminado em @vcimentos.com.');return;}
+    savePresentationSession(email,'corporate');
+    $('#presentationLoginDialog').close();activateAppMode('presentation');
+  });
+  $('#commonUserLoginForm')?.addEventListener('submit',async event=>{
+    event.preventDefault();setAccessMessage('#commonLoginError');
+    const user=await authenticateAccess($('#commonLoginUsername').value,$('#commonLoginPassword').value);
+    if(!user||user.role!=='user'){setAccessMessage('#commonLoginError','Usuário ou senha inválidos.');return;}
+    savePresentationSession(user.username,'common',user.id);$('#commonUserLoginDialog').close();activateAppMode('presentation');
+  });
+  $('#adminLoginForm')?.addEventListener('submit',async event=>{
+    event.preventDefault();setAccessMessage('#adminLoginError');
+    const user=await authenticateAccess($('#adminLoginUsername').value,$('#adminLoginPassword').value,true);
+    if(!user){setAccessMessage('#adminLoginError','Credenciais administrativas inválidas.');return;}
+    activeAdminUserId=user.id;showAdminPanel();
+  });
+  $('#clearHistoryForm')?.addEventListener('submit',async event=>{
+    event.preventDefault();setAccessMessage('#clearHistoryError');
+    const admin=await authenticateAccess($('#clearHistoryUsername').value,$('#clearHistoryPassword').value,true);
+    if(!admin){setAccessMessage('#clearHistoryError','Credenciais administrativas inválidas.');return;}
+    if(!confirm('Limpar definitivamente todo o histórico de alterações?'))return;
+    state.history=[];save();renderHistory();$('#clearHistoryDialog').close();toast(`Histórico limpo pelo administrador ${admin.username}`);
+  });
+  $('#adminUserForm')?.addEventListener('submit',async event=>{
+    event.preventDefault();setAccessMessage('#adminUserMessage');
+    const users=readAccessUsers(),editingId=normalize($('#adminEditingUserId').value),username=normalize($('#adminUserName').value),password=$('#adminUserPassword').value,role=$('#adminUserRole').value==='admin'?'admin':'user';
+    if(!username){setAccessMessage('#adminUserMessage','Informe o usuário.');return;}
+    if(users.some(user=>user.id!==editingId&&normalize(user.username).toLocaleLowerCase('pt-BR')===username.toLocaleLowerCase('pt-BR'))){setAccessMessage('#adminUserMessage','Este usuário já existe.');return;}
+    if(!editingId&&!password){setAccessMessage('#adminUserMessage','Informe uma senha para o novo usuário.');return;}
+    if(password&&password.length<6){setAccessMessage('#adminUserMessage','A senha deve ter pelo menos 6 caracteres.');return;}
+    const existing=users.find(user=>user.id===editingId);
+    if(existing){
+      const removingLastAdmin=existing.role==='admin'&&role!=='admin'&&users.filter(user=>user.role==='admin').length===1;
+      if(removingLastAdmin){setAccessMessage('#adminUserMessage','É necessário manter pelo menos um administrador.');return;}
+      existing.username=username;existing.role=role;if(password)existing.passwordHash=await hashAccessPassword(password);existing.updatedAt=new Date().toISOString();
+    }else users.push({id:uid(),username,passwordHash:await hashAccessPassword(password),role,createdAt:new Date().toISOString()});
+    writeAccessUsers(users);
+    const session=readPresentationSession();if(existing&&session?.kind==='common'&&session.userId===existing.id&&password)localStorage.removeItem(PRESENTATION_SESSION_KEY);
+    resetAdminUserForm();renderAdminUsers();setAccessMessage('#adminUserMessage',existing?'Usuário atualizado.':'Usuário cadastrado.');
+  });
+  $('#btnCancelUserEdit')?.addEventListener('click',()=>{resetAdminUserForm();setAccessMessage('#adminUserMessage');});
+  $('#adminUserListBody')?.addEventListener('click',event=>{
+    const editId=event.target.closest('[data-access-edit]')?.dataset.accessEdit;
+    if(editId){const user=readAccessUsers().find(item=>item.id===editId);if(!user)return;$('#adminEditingUserId').value=user.id;$('#adminUserName').value=user.username;$('#adminUserPassword').value='';$('#adminUserRole').value=user.role;$('#btnCancelUserEdit').hidden=false;setAccessMessage('#adminUserMessage','Deixe a senha vazia para manter a atual.');return;}
+    const deleteId=event.target.closest('[data-access-delete]')?.dataset.accessDelete;if(!deleteId)return;
+    const users=readAccessUsers(),user=users.find(item=>item.id===deleteId);if(!user)return;
+    if(user.role==='admin'&&users.filter(item=>item.role==='admin').length===1){setAccessMessage('#adminUserMessage','Não é possível excluir o último administrador.');return;}
+    if(!confirm(`Excluir o usuário ${user.username}?`))return;
+    writeAccessUsers(users.filter(item=>item.id!==deleteId));
+    if(readPresentationSession()?.userId===deleteId)localStorage.removeItem(PRESENTATION_SESSION_KEY);
+    renderAdminUsers();resetAdminUserForm();setAccessMessage('#adminUserMessage','Usuário excluído.');
+  });
+  $('#btnAdminLogout')?.addEventListener('click',()=>{activeAdminUserId='';$('#adminPanelSection').hidden=true;$('#adminLoginSection').hidden=false;$('#adminLoginForm').reset();});
+  ensureAccessUsers();
 }
 
 function formatDateBR(date){
@@ -186,7 +341,12 @@ function normalizeDailyObservations(value){
   return Object.fromEntries(Object.entries(value).map(([key,text])=>[String(key),String(text??'')]));
 }
 function toast(msg){const el=$('#toast');el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),2200);}
-function log(action,details){state.history.unshift({id:uid(),date:new Date().toISOString(),action,details});state.history=state.history.slice(0,500);save();renderHistory();}
+function currentAuditUser(){
+  if(appMode==='viewer')return{userId:'viewer',username:'Visualização'};
+  const session=readPresentationSession();
+  return session?{userId:session.userId||session.identity,username:session.identity}:{userId:'unknown',username:'Não identificado'};
+}
+function log(action,details){const audit=currentAuditUser();state.history.unshift({id:uid(),date:new Date().toISOString(),action,details,...audit});state.history=state.history.slice(0,500);save();renderHistory();}
 function syncActiveFilterBank(){
   if(state.activeFilterView==='dashboard'||state.activeFilterView==='ordens')state.filtersByView[state.activeFilterView]=cloneFilterState(state.filters);
 }
@@ -195,7 +355,7 @@ function getProjectData(){
   return{orders:state.orders,systematicCatalog:state.systematicCatalog,systematicCatalogMeta:state.systematicCatalogMeta,capacity:state.capacity,capacityChartAreas:state.capacityChartAreas,capacityConsumptionOffice:state.capacityConsumptionOffice,dailySelectedWeek:state.dailySelectedWeek,dailySelectedDay:state.dailySelectedDay,dailySelectedPromanPlants:state.dailySelectedPromanPlants,dailySelectedOffices:state.dailySelectedOffices,dailyObservations:state.dailyObservations,history:state.history,qppBoard:state.qppBoard,qppSelectedWeeks:state.qppSelectedWeeks,meetings:state.meetings,filtersByView:state.filtersByView,proman:window.PSMProMan?.getProjectData?.()||null};
 }
 function save(){
-  try{localStorage.setItem(STORAGE_KEY,JSON.stringify(getProjectData()));return true;}
+  try{localStorage.setItem(STORAGE_KEY,JSON.stringify(getProjectData()));saveAccessFiltersForMode();return true;}
   catch(error){console.error('Falha no salvamento local:',error);toast('O navegador não conseguiu salvar os dados localmente.');return false;}
 }
 function projectFileName(){const week=String(getPlanningWeekData().week).padStart(2,'0');const date=new Date().toISOString().slice(0,10);return`PSM_Semana_${week}_${date}.psm`;}
@@ -454,17 +614,18 @@ function renderTable(){
   state.page=Math.min(state.page,pages);
   const slice=rows.slice((state.page-1)*state.pageSize,state.page*state.pageSize);
   const viewer=isViewerMode();
+  const inlineText=(o,field,value,label)=>viewer?escapeHtml(value):`<span class="order-inline-value" contenteditable="true" data-order-inline-id="${escapeHtml(o.id)}" data-order-inline-field="${field}" data-order-inline-before="${escapeHtml(value)}" role="textbox" aria-label="${label} da ordem ${escapeHtml(o.ordem)}">${escapeHtml(value)}</span>`;
   $('#ordersBody').innerHTML=slice.map((o,index)=>`<tr data-order-id="${o.id}">
     <td class="row-number-cell" aria-label="Linha ${(state.page-1)*state.pageSize+index+1}">${(state.page-1)*state.pageSize+index+1}</td>
-    <td>${escapeHtml(o.ordem)}</td>
-    <td title="${escapeHtml(o.descricao)}">${escapeHtml(o.descricao).slice(0,44)}</td>
-    <td>${escapeHtml(o.area)}</td>
-    <td>${escapeHtml(o.oficina)}</td>
-    <td>${escapeHtml(o.equipamento)}</td>
-    <td class="orders-labor-cell">${fmtNum.format(num(o.maoObra))}</td>
-    <td class="orders-duration-cell">${fmtNum.format(num(o.duracao))}</td>
+    <td>${inlineText(o,'ordem',normalize(o.ordem),'OS')}</td>
+    <td title="${escapeHtml(o.descricao)}">${inlineText(o,'descricao',normalize(o.descricao),'Descrição')}</td>
+    <td>${inlineText(o,'area',normalize(o.area),'Área')}</td>
+    <td>${inlineText(o,'oficina',normalize(o.oficina),'Oficina')}</td>
+    <td>${inlineText(o,'equipamento',normalize(o.equipamento),'Equipamento')}</td>
+    <td class="orders-labor-cell">${viewer?fmtNum.format(num(o.maoObra)):`<span class="order-inline-value" contenteditable="true" inputmode="numeric" data-order-number-id="${escapeHtml(o.id)}" data-order-number-field="maoObra" data-order-number-before="${num(o.maoObra)}" role="textbox" aria-label="Mão de obra da ordem ${escapeHtml(o.ordem)}">${fmtNum.format(num(o.maoObra))}</span>`}</td>
+    <td class="orders-duration-cell">${viewer?fmtNum.format(num(o.duracao)):`<span class="order-inline-value" contenteditable="true" inputmode="decimal" data-order-number-id="${escapeHtml(o.id)}" data-order-number-field="duracao" data-order-number-before="${num(o.duracao)}" role="textbox" aria-label="Duração da ordem ${escapeHtml(o.ordem)}">${fmtNum.format(num(o.duracao))}</span>`}</td>
     <td>${fmtNum.format(o.hh)}</td>
-    <td>${fmtBRL.format(o.custo)}</td>
+    <td>${viewer?fmtBRL.format(o.custo):`<span class="order-inline-value" contenteditable="true" inputmode="decimal" data-order-number-id="${escapeHtml(o.id)}" data-order-number-field="custo" data-order-number-before="${num(o.custo)}" role="textbox" aria-label="Custo da ordem ${escapeHtml(o.ordem)}">${fmtNum.format(num(o.custo))}</span>`}</td>
     <td class="qpp-fill-cell">${viewer?`<span class="viewer-order-classification is-${qppValue(o)==='QPP'?'qpp':'routine'}">${escapeHtml(qppValue(o))}</span>`:`<div class="qpp-fill-control"><select class="qpp-select" data-qpp-id="${o.id}" aria-label="Classificação da ordem ${escapeHtml(o.ordem)}"><option value="Não" ${qppValue(o)==='Não'?'selected':''}>Não</option><option value="Rotina" ${qppValue(o)==='Rotina'?'selected':''}>Rotina</option><option value="QPP" ${qppValue(o)==='QPP'?'selected':''}>QPP</option><option value="PRIOR" ${qppValue(o)==='PRIOR'?'selected':''}>PRIOR</option><option value="EXEC" ${qppValue(o)==='EXEC'?'selected':''}>EXEC</option><option value="REPR" ${qppValue(o)==='REPR'?'selected':''}>REPR</option></select><span class="qpp-fill-handle" data-qpp-fill-id="${o.id}" role="button" tabindex="0" aria-label="Arrastar classificação da ordem ${escapeHtml(o.ordem)}" title="Arraste para copiar esta classificação"></span></div>`}</td>
     <td class="order-type-column"><span class="order-type-badge ${orderTypeValue(o)==='SISTEMÁTICA'?'is-systematic':'is-non-systematic'}">${escapeHtml(orderTypeValue(o))}</span></td>
     <td class="observation-fill-cell">${viewer?`<span class="viewer-order-observation">${escapeHtml(o.observacoes||'—')}</span>`:`<div class="observation-fill-control"><input class="observation-input" data-observation-id="${o.id}" value="${escapeHtml(o.observacoes||'')}" placeholder="Escreva uma observação..." aria-label="Observação da ordem ${escapeHtml(o.ordem)}"><span class="observation-fill-handle" data-observation-fill-id="${o.id}" role="button" tabindex="0" aria-label="Arrastar observação da ordem ${escapeHtml(o.ordem)}" title="Arraste para copiar esta observação"></span></div>`}</td>
@@ -472,7 +633,7 @@ function renderTable(){
   </tr>`).join('')||'<tr><td colspan="14">Nenhuma ordem encontrada.</td></tr>';
   $('#pageInfo').textContent=`Página ${state.page} de ${pages} · ${rows.length} registros`;
 }
-function renderHistory(){$('#historyList').innerHTML=state.history.map(h=>`<div class="history-item"><strong>${escapeHtml(h.action)}</strong><div>${escapeHtml(h.details)}</div><small>${new Date(h.date).toLocaleString('pt-BR')}</small></div>`).join('')||'<p>Nenhuma alteração registrada.</p>';}
+function renderHistory(){$('#historyList').innerHTML=state.history.map(h=>`<div class="history-item"><strong>${escapeHtml(h.action)}</strong><div>${escapeHtml(h.details)}</div><small>${new Date(h.date).toLocaleString('pt-BR')} · Usuário: ${escapeHtml(h.username||'Não identificado')}</small></div>`).join('')||'<p>Nenhuma alteração registrada.</p>';}
 function renderLists(){const options=vals=>[...new Set(vals.filter(Boolean))].sort().map(v=>`<option value="${escapeHtml(v)}"></option>`).join('');const sources=[...state.orders,...state.systematicCatalog];$('#areasList').innerHTML=options(sources.map(o=>o.area));$('#oficinasList').innerHTML=options(sources.map(o=>o.oficina));}
 function renderSystematicStatus(){
   const total=state.systematicCatalog.length,status=$('#systematicCatalogStatus'),bulk=$('#bulkCatalogStatus');
@@ -848,7 +1009,7 @@ function dailyOrderCard(order,day){
     ?`<small class="daily-order-labor"><b>Tipo:</b> ${escapeHtml(promanType||'NÃO')}</small>`
     :`<small class="daily-order-labor"><b>Mão de obra:</b> ${escapeHtml(laborText)}</small>`;
   return `<article class="daily-order">
-    <div class="daily-order-heading"><strong>${escapeHtml(order.ordem)}</strong><span class="daily-order-controls">${badges}<label class="daily-checkin ${completed?'is-checked':''}" title="${completed?'Remover check-in':'Marcar atividade como realizada'}"><input type="checkbox" data-daily-checkin-id="${escapeHtml(order.id)}" ${completed?'checked':''} aria-label="${completed?'Remover check-in da':'Marcar como realizada a'} ordem ${escapeHtml(order.ordem)}"></label></span></div>
+    <div class="daily-order-heading"><strong>${escapeHtml(order.ordem)}</strong><span class="daily-order-controls">${badges}<label class="daily-checkin ${completed?'is-checked':''}" title="${completed?'Remover check-in':'Marcar atividade como realizada'}"><input type="checkbox" data-daily-checkin-id="${escapeHtml(order.id)}" ${order.isProman?`data-proman-record-id="${escapeHtml(order.promanRecordId)}" data-proman-plant="${escapeHtml(order.promanPlant)}" data-proman-os="${escapeHtml(order.ordem)}" data-proman-what="${escapeHtml(order.descricao)}"`:''} ${completed?'checked':''} aria-label="${completed?'Remover check-in da':'Marcar como realizada a'} ordem ${escapeHtml(order.ordem)}"></label></span></div>
     <p>${escapeHtml(order.descricao||'Sem descrição')}</p>
     <small class="daily-order-meta">${escapeHtml(meta)}</small>
     ${detail}
@@ -1278,8 +1439,14 @@ function wireRequestedImprovements(){
     if(checkinId){
       const order=state.orders.find(item=>item.id===checkinId);
       if(!order){
-        const changed=window.PSMProMan?.setDailyCompleted?.(checkinId,Boolean(event.target.checked));
-        if(changed)toast(event.target.checked?'Atividade PROMAN marcada como realizada':'Atividade PROMAN devolvida para Rotina');
+        let changed=false;
+        try{changed=window.PSMProMan?.setDailyCompleted?.(checkinId,Boolean(event.target.checked),event.target.dataset.promanRecordId||'',event.target.dataset.promanPlant||'',event.target.dataset.promanOs||'',event.target.dataset.promanWhat||'')===true;}
+        catch(error){console.error('Falha ao concluir atividade PROMAN.',error);}
+        if(changed){
+          log(event.target.checked?'Atividade PROMAN realizada':'Atividade PROMAN reaberta',`${checkinId} ${event.target.checked?'marcada como concluída':'devolvida para o planejamento'}.`);
+          renderDailyPlan();
+          toast(event.target.checked?'Atividade PROMAN movida para Realizado':'Atividade PROMAN devolvida para Rotina');
+        }else{event.target.checked=!event.target.checked;toast('Não foi possível localizar esta atividade na PROMAN.');renderDailyPlan();}
         return;
       }
       order.realizado=Boolean(event.target.checked);
@@ -1413,10 +1580,44 @@ function wire(){
   };
   $('#ordersBody').onchange=e=>{
     if(isViewerMode())return;
+    const numberId=e.target.dataset.orderNumberId,numberField=e.target.dataset.orderNumberField;
+    if(numberId&&['maoObra','duracao','custo'].includes(numberField)){
+      const order=state.orders.find(o=>o.id===numberId);if(!order)return;
+      const before=num(order[numberField]),after=Math.max(0,num(e.target.value));
+      order[numberField]=numberField==='maoObra'?Math.round(after):after;
+      if(numberField!=='custo')order.hh=num(order.duracao)*num(order.maoObra);
+      const label=numberField==='maoObra'?'Mão de obra':numberField==='duracao'?'Duração':'Custo';
+      log(`${label} alterado`,numberField==='custo'?`OS ${order.ordem}: ${fmtBRL.format(before)} → ${fmtBRL.format(order.custo)}.`:`OS ${order.ordem}: ${fmtNum.format(before)} → ${fmtNum.format(order[numberField])}. HH recalculado para ${fmtNum.format(order.hh)}.`);
+      save();render();toast(`${label} atualizado`);return;
+    }
     const qppId=e.target.dataset.qppId,observationId=e.target.dataset.observationId;
     if(qppId){const order=state.orders.find(o=>o.id===qppId);if(!order)return;const before=qppValue(order);order.qpp=e.target.value;log('Classificação alterada',`OS ${order.ordem}: ${before} → ${order.qpp}.`);save();render();toast('Classificação atualizada');return;}
     if(observationId){const order=state.orders.find(o=>o.id===observationId);if(!order)return;const before=normalize(order.observacoes);order.observacoes=normalize(e.target.value);log('Observação alterada',`OS ${order.ordem}: ${before||'sem observação'} → ${order.observacoes||'sem observação'}.`);save();renderFilters();toast('Observação salva');}
   };
+  $('#ordersBody').addEventListener('focusout',e=>{
+    if(isViewerMode())return;
+    const target=e.target.closest?.('[data-order-number-id][contenteditable="true"]');if(!target)return;
+    const order=state.orders.find(o=>o.id===target.dataset.orderNumberId),field=target.dataset.orderNumberField;if(!order||!['maoObra','duracao','custo'].includes(field))return;
+    const before=num(target.dataset.orderNumberBefore),after=Math.max(0,num(target.textContent));
+    order[field]=field==='maoObra'?Math.round(after):after;if(field!=='custo')order.hh=num(order.duracao)*num(order.maoObra);
+    const label=field==='maoObra'?'Mão de obra':field==='duracao'?'Duração':'Custo';
+    if(before!==order[field])log(`${label} alterado`,field==='custo'?`OS ${order.ordem}: ${fmtBRL.format(before)} → ${fmtBRL.format(order.custo)}.`:`OS ${order.ordem}: ${fmtNum.format(before)} → ${fmtNum.format(order[field])}. HH recalculado para ${fmtNum.format(order.hh)}.`);
+    save();render();if(before!==order[field])toast(`${label} atualizado`);
+  });
+  $('#ordersBody').addEventListener('focusout',e=>{
+    if(isViewerMode())return;
+    const target=e.target.closest?.('[data-order-inline-id][contenteditable="true"]');if(!target)return;
+    const order=state.orders.find(o=>o.id===target.dataset.orderInlineId),field=target.dataset.orderInlineField;if(!order||!['ordem','descricao','area','oficina','equipamento'].includes(field))return;
+    const before=normalize(target.dataset.orderInlineBefore),after=normalize(target.textContent);
+    if(!after&&['ordem','descricao'].includes(field)){target.textContent=before;toast('Este campo não pode ficar vazio');return;}
+    order[field]=after;if(before!==after)log('Dados da ordem alterados',`OS ${field==='ordem'?after:order.ordem}: ${field} alterado de ${before||'vazio'} para ${after||'vazio'}.`);
+    save();render();if(before!==after)toast('Ordem atualizada');
+  });
+  $('#ordersBody').addEventListener('keydown',e=>{
+    if(!e.target.matches?.('[contenteditable="true"][data-order-number-id],[contenteditable="true"][data-order-inline-id]'))return;
+    if(e.key==='Enter'){e.preventDefault();e.target.blur();}
+    if(e.key==='Escape'){e.preventDefault();e.target.textContent=e.target.dataset.orderNumberId?fmtNum.format(num(e.target.dataset.orderNumberBefore)):e.target.dataset.orderInlineBefore;e.target.blur();}
+  });
   $('#ordersBody').addEventListener('pointerdown',event=>{
     if(isViewerMode())return;
     const handle=event.target.closest?.('[data-qpp-fill-id]');if(!handle||event.button!==0)return;
@@ -1479,7 +1680,7 @@ function wire(){
       save();render();toast('Banco de ordens limpo');
     }
   };
-  $('#btnClearHistory').onclick=()=>{if(confirm('Limpar todo o histórico?')){state.history=[];save();renderHistory();}};
+  $('#btnClearHistory').onclick=()=>{$('#clearHistoryForm')?.reset();setAccessMessage('#clearHistoryError');$('#clearHistoryDialog')?.showModal();};
   $('#btnTheme').onclick=()=>{document.documentElement.classList.toggle('light');localStorage.setItem('psm-theme',document.documentElement.classList.contains('light')?'light':'dark');renderCharts();window.PSMProMan?.render?.();};
   $('#btnFullscreen').onclick=()=>document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen();
   wireQppBoard();wireMeetings();
