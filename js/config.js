@@ -8,6 +8,7 @@
     publishableKey: 'sb_publishable_kfCU8QGUJF66y1V8iB1Xwg_orc9Pjjz',
     workspaceId: 'psm-analytics-main',
     table: 'psm_shared_state',
-    saveDebounceMs: 600
+    saveDebounceMs: 600,
+    pollIntervalMs: 15000
   });
 })(window);

@@ -452,17 +452,26 @@ function updateServerSyncStatus(event){
   const dot=$('#saveStatus'),text=$('#saveStatusText');
   if(dot){dot.dataset.syncState=detail.state||'local';dot.title=detail.error||detail.text||'';}
   if(text)text.textContent=detail.text||'Cópia local ativa';
+  const startupText=$('#syncStartupText');
+  if(startupText&&!$('#syncStartupOverlay')?.hidden&&detail.text)startupText.textContent=detail.text;
 }
 async function startServerSync(){
+  const startupOverlay=$('#syncStartupOverlay');
+  if(startupOverlay)startupOverlay.hidden=false;
   if(!window.PSMServerSync){
     updateServerSyncStatus({detail:{state:'error',text:'Sincronização não carregada'}});
+    if(startupOverlay)startupOverlay.hidden=true;
     return;
   }
-  await window.PSMServerSync.start({
-    getSnapshot:getSharedProjectData,
-    onSnapshot:applySharedProjectData,
-    getUser:()=>currentAuditUser().username
-  });
+  try{
+    await window.PSMServerSync.start({
+      getSnapshot:getSharedProjectData,
+      onSnapshot:applySharedProjectData,
+      getUser:()=>currentAuditUser().username
+    });
+  }finally{
+    if(startupOverlay)startupOverlay.hidden=true;
+  }
 }
 
 const sampleOrders=[

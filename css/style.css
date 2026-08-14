@@ -2085,3 +2085,39 @@ body[data-active-view]:not([data-active-view="dashboard"]):not([data-active-view
   .sidebar-expanded .mode-switch-button span{font-size:8px}
   .sidebar-expanded .mode-switch-button strong{font-size:9.5px}
 }
+/* Bloqueia a interface apenas durante a leitura inicial da base compartilhada. */
+.sync-startup-overlay{
+  position:fixed;
+  inset:0;
+  z-index:10000;
+  display:grid;
+  place-items:center;
+  padding:24px;
+  background:rgba(4,18,35,.78);
+  backdrop-filter:blur(6px);
+}
+.sync-startup-overlay[hidden]{display:none}
+.sync-startup-card{
+  display:grid;
+  justify-items:center;
+  gap:10px;
+  width:min(390px,calc(100vw - 48px));
+  padding:28px;
+  border:1px solid rgba(255,255,255,.18);
+  border-radius:18px;
+  background:#fff;
+  color:#0b365f;
+  text-align:center;
+  box-shadow:0 24px 70px rgba(0,0,0,.35);
+}
+.sync-startup-card strong{font-size:17px}
+.sync-startup-card small{color:#60758a;font-size:12px}
+.sync-startup-spinner{
+  width:34px;
+  height:34px;
+  border:4px solid #dce9f5;
+  border-top-color:#1476b8;
+  border-radius:50%;
+  animation:sync-startup-spin .8s linear infinite;
+}
+@keyframes sync-startup-spin{to{transform:rotate(360deg)}}

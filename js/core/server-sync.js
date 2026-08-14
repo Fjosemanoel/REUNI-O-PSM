@@ -14,6 +14,9 @@
   let saving = false;
   let saveTimer = 0;
   let retryTimer = 0;
+  let pollTimer = 0;
+  let reconnectTimer = 0;
+  let realtimeConnected = false;
   let pending = null;
   let lastSavedFingerprint = '';
   let lastRevision = 0;
@@ -35,7 +38,8 @@
       publishableKey: clean(source.publishableKey),
       workspaceId: clean(source.workspaceId) || 'psm-analytics-main',
       table: clean(source.table) || 'psm_shared_state',
-      saveDebounceMs: Math.max(150, Number(source.saveDebounceMs) || 600)
+      saveDebounceMs: Math.max(150, Number(source.saveDebounceMs) || 600),
+      pollIntervalMs: Math.max(5000, Number(source.pollIntervalMs) || 15000)
     };
   }
 
@@ -83,7 +87,7 @@
     return data;
   }
 
-  function waitForSubscription() {
+  function waitForSubscription(targetChannel) {
     return new Promise((resolve, reject) => {
       let settled = false;
       const timeout = global.setTimeout(() => {
@@ -92,7 +96,7 @@
         reject(new Error('Tempo esgotado ao conectar ao servidor em tempo real.'));
       }, 12000);
 
-      channel.subscribe(status => {
+      targetChannel.subscribe(status => {
         if (settled) return;
         if (status === 'SUBSCRIBED') {
           settled = true;
@@ -105,6 +109,64 @@
         }
       });
     });
+  }
+
+  function createRealtimeChannel() {
+    return client
+      .channel(`psm-shared-${config.workspaceId}`)
+      .on('broadcast', { event: 'data-updated' }, message => {
+        const payload = message?.payload || {};
+        if (payload.workspaceId !== config.workspaceId || payload.clientId === clientId) return;
+        fetchLatest().catch(error => {
+          console.error('Falha ao receber atualização do servidor.', error);
+          emit('error', 'Falha ao receber atualização');
+        });
+      });
+  }
+
+  function scheduleRealtimeReconnect() {
+    if (!ready || realtimeConnected || reconnectTimer) return;
+    reconnectTimer = global.setTimeout(() => {
+      reconnectTimer = 0;
+      connectRealtime().catch(() => {});
+    }, 30000);
+  }
+
+  async function connectRealtime() {
+    if (!client || !config || realtimeConnected) return realtimeConnected;
+    const nextChannel = createRealtimeChannel();
+    channel = nextChannel;
+    try {
+      await waitForSubscription(nextChannel);
+      if (channel !== nextChannel) return false;
+      realtimeConnected = true;
+      emit('online', 'Servidor conectado · tempo real ativo', { revision: lastRevision, realtime: true });
+      return true;
+    } catch (error) {
+      console.warn('Canal em tempo real indisponível; atualização periódica continuará ativa.', error);
+      if (channel === nextChannel) channel = null;
+      realtimeConnected = false;
+      try { await client.removeChannel?.(nextChannel); } catch {}
+      emit('online', 'Servidor conectado · atualização automática ativa', {
+        revision: lastRevision,
+        realtime: false
+      });
+      scheduleRealtimeReconnect();
+      return false;
+    }
+  }
+
+  function startPolling() {
+    global.clearInterval(pollTimer);
+    pollTimer = global.setInterval(() => {
+      if (!ready || saving) return;
+      fetchLatest()
+        .then(() => flush())
+        .catch(error => {
+          console.error('Falha na atualização periódica.', error);
+          emit('error', 'Sem conexão — cópia local preservada', { error: error?.message || String(error) });
+        });
+    }, config.pollIntervalMs);
   }
 
   async function writeSnapshot(snapshot, updatedBy = '') {
@@ -123,7 +185,7 @@
 
     lastRevision = Number(data?.revision) || lastRevision;
     lastSavedFingerprint = fingerprint(snapshot);
-    if (channel) {
+    if (channel && realtimeConnected) {
       channel.send({
         type: 'broadcast',
         event: 'data-updated',
@@ -202,18 +264,9 @@
       client = global.supabase.createClient(config.url, config.publishableKey, {
         auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
       });
-      channel = client
-        .channel(`psm-shared-${config.workspaceId}`)
-        .on('broadcast', { event: 'data-updated' }, message => {
-          const payload = message?.payload || {};
-          if (payload.workspaceId !== config.workspaceId || payload.clientId === clientId) return;
-          fetchLatest().catch(error => {
-            console.error('Falha ao receber atualização do servidor.', error);
-            emit('error', 'Falha ao receber atualização');
-          });
-        });
 
-      await waitForSubscription();
+      // Primeiro carrega a base via HTTP. Isso funciona mesmo quando uma rede
+      // corporativa bloqueia o canal WebSocket usado pelo tempo real.
       const remote = await fetchLatest({ initial: true });
       ready = true;
 
@@ -226,6 +279,9 @@
         }
         emit('online', 'Servidor conectado', { revision: lastRevision });
       }
+
+      startPolling();
+      connectRealtime().catch(() => {});
       return { configured: true, ready: true, revision: lastRevision };
     } catch (error) {
       console.error('Falha ao iniciar sincronização.', error);
@@ -236,7 +292,12 @@
 
   global.addEventListener('online', () => {
     if (!ready) return;
-    fetchLatest().then(() => flush()).catch(() => scheduleRetry());
+    fetchLatest()
+      .then(() => flush())
+      .then(() => {
+        if (!realtimeConnected) connectRealtime().catch(() => {});
+      })
+      .catch(() => scheduleRetry());
   });
 
   global.addEventListener('beforeunload', () => {
