@@ -1,4 +1,10 @@
-# PSM Analytics Pro 2.18.4
+# PSM Analytics Pro 2.18.6
+
+## Correção 2.18.6 — sincronização somente dos dados
+
+- Ordens, capacidade/HH, Quadro QPP, programação, atas e bases PROMAN continuam compartilhados pelo Supabase.
+- Abas abertas, filtros, oficina selecionada e semana visualizada permanecem individuais em cada aparelho.
+- O computador e o celular podem navegar de forma independente sem alterar a tela um do outro.
 
 ## Correção 2.18.4 — atualização forçada no celular
 
