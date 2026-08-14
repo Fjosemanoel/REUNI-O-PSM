@@ -1,4 +1,11 @@
-# PSM Analytics Pro 2.18.6
+# PSM Analytics Pro 2.18.7
+
+## Correção 2.18.7 — semana e áreas compartilhadas
+
+- A semana marcada no Quadro de Programação é compartilhada pelo computador em modo `Apresentação`.
+- As áreas escolhidas para o quadro de HH e a oficina usada no cálculo também são compartilhadas.
+- O celular recebe essas seleções junto com os dados, mas continua livre para permanecer em qualquer aba.
+- A tela aberta e a navegação não são sincronizadas.
 
 ## Correção 2.18.6 — sincronização somente dos dados
 

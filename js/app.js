@@ -11,7 +11,7 @@ function cloneFilterState(filters={}){
   ['qpp','tipoOrdem','area','oficina','crit','obs'].forEach(key=>clean[key]=Array.isArray(filters[key])?[...filters[key]]:[]);
   return clean;
 }
-const state={orders:[],systematicCatalog:[],systematicCatalogMeta:{fileName:'',importedAt:'',total:0},capacity:[],capacityChartAreas:[],capacityConsumptionOffice:'',dailySelectedWeek:0,dailySelectedDay:'',dailySelectedPromanPlants:[],dailySelectedOffices:[],dailyObservations:{},history:[],qppBoard:[],meetings:{},qppBoardFilter:'all',qppSelectedWeeks:[],qppShowHidden:false,qppCurrentWeek:1,lastFilterChanged:'',activeView:'dashboard',activeFilterView:'dashboard',filters:emptyFilterState(),filtersByView:{dashboard:emptyFilterState(),ordens:emptyFilterState()},sort:{key:'',direction:'desc'},page:1,pageSize:25,charts:{}};
+const state={orders:[],systematicCatalog:[],systematicCatalogMeta:{fileName:'',importedAt:'',total:0},capacity:[],capacityChartAreas:[],capacityConsumptionOffice:'',dailySelectedWeek:0,dailySelectedDay:'',dailySelectedPromanPlants:[],dailySelectedOffices:[],dailyObservations:{},history:[],qppBoard:[],meetings:{},qppBoardFilter:'all',qppSelectedWeeks:[],qppShowHidden:false,qppCurrentWeek:1,sharedPresentationSettings:null,lastFilterChanged:'',activeView:'dashboard',activeFilterView:'dashboard',filters:emptyFilterState(),filtersByView:{dashboard:emptyFilterState(),ordens:emptyFilterState()},sort:{key:'',direction:'desc'},page:1,pageSize:25,charts:{}};
 let appMode='';
 const ACCESS_USERS_KEY='psm-access-users-v1';
 const ACCESS_FILTERS_KEY='psm-access-filters-v1';
@@ -129,6 +129,10 @@ function activateAppMode(mode){
   document.querySelector('[data-view="dashboard"]')?.click();
   render();
   window.PSMProMan?.render?.();
+  if(mode==='presentation'){
+    state.sharedPresentationSettings=captureSharedPresentationSettings();
+    save();
+  }
   requestAnimationFrame(()=>enforceViewerControls());
 }
 function showModeGate(){
@@ -354,9 +358,38 @@ function getProjectData(){
   syncActiveFilterBank();
   return{orders:state.orders,systematicCatalog:state.systematicCatalog,systematicCatalogMeta:state.systematicCatalogMeta,capacity:state.capacity,capacityChartAreas:state.capacityChartAreas,capacityConsumptionOffice:state.capacityConsumptionOffice,dailySelectedWeek:state.dailySelectedWeek,dailySelectedDay:state.dailySelectedDay,dailySelectedPromanPlants:state.dailySelectedPromanPlants,dailySelectedOffices:state.dailySelectedOffices,dailyObservations:state.dailyObservations,history:state.history,qppBoard:state.qppBoard,qppSelectedWeeks:state.qppSelectedWeeks,meetings:state.meetings,filtersByView:state.filtersByView,proman:window.PSMProMan?.getProjectData?.()||null};
 }
-function getSharedProjectData(){
+function captureSharedPresentationSettings(){
   return{
-    schemaVersion:1,
+    capacityChartAreas:[...state.capacityChartAreas],
+    capacityConsumptionOffice:state.capacityConsumptionOffice,
+    qppSelectedWeeks:[...state.qppSelectedWeeks],
+    qppCurrentWeek:state.qppCurrentWeek,
+    qppShowHidden:state.qppShowHidden
+  };
+}
+function normalizeSharedPresentationSettings(value={}){
+  const currentWeek=Number(value.qppCurrentWeek);
+  return{
+    capacityChartAreas:Array.isArray(value.capacityChartAreas)?value.capacityChartAreas.map(upper).filter(Boolean):[],
+    capacityConsumptionOffice:upper(value.capacityConsumptionOffice),
+    qppSelectedWeeks:normalizeQppWeekSelection(value.qppSelectedWeeks),
+    qppCurrentWeek:Number.isInteger(currentWeek)&&currentWeek>=1&&currentWeek<=52?currentWeek:1,
+    qppShowHidden:value.qppShowHidden===true
+  };
+}
+function applySharedPresentationSettings(value){
+  const settings=normalizeSharedPresentationSettings(value);
+  state.sharedPresentationSettings=settings;
+  state.capacityChartAreas=[...settings.capacityChartAreas];
+  state.capacityConsumptionOffice=settings.capacityConsumptionOffice;
+  state.qppSelectedWeeks=[...settings.qppSelectedWeeks];
+  state.qppCurrentWeek=settings.qppCurrentWeek;
+  state.qppShowHidden=settings.qppShowHidden;
+}
+function getSharedProjectData(){
+  if(appMode==='presentation')state.sharedPresentationSettings=captureSharedPresentationSettings();
+  return{
+    schemaVersion:2,
     orders:state.orders,
     systematicCatalog:state.systematicCatalog,
     systematicCatalogMeta:state.systematicCatalogMeta,
@@ -365,6 +398,7 @@ function getSharedProjectData(){
     history:state.history,
     qppBoard:state.qppBoard,
     meetings:state.meetings,
+    presentationSettings:state.sharedPresentationSettings||captureSharedPresentationSettings(),
     proman:window.PSMProMan?.getSharedData?.()||window.PSMProMan?.getProjectData?.()||null
   };
 }
@@ -378,6 +412,7 @@ function applySharedProjectData(payload,metadata={}){
   state.history=Array.isArray(payload.history)?payload.history:[];
   state.qppBoard=Array.isArray(payload.qppBoard)?payload.qppBoard:[];
   state.meetings=payload.meetings&&typeof payload.meetings==='object'?payload.meetings:{};
+  if(payload.presentationSettings&&typeof payload.presentationSettings==='object')applySharedPresentationSettings(payload.presentationSettings);
   if(window.PSMProMan?.restoreSharedData)window.PSMProMan.restoreSharedData(payload.proman,false);
   else window.PSMProMan?.restoreProjectData?.(payload.proman,false);
   ensureQppBoard();
@@ -1230,7 +1265,7 @@ function wireQppBoard(){
     save();renderQppBoard();
   };
   document.addEventListener('click',closeWeekMenu);
-  $('#btnShowHiddenWeeks').onclick=()=>{state.qppShowHidden=!state.qppShowHidden;$('#btnShowHiddenWeeks').textContent=state.qppShowHidden?'Ocultar semanas marcadas':'Mostrar ocultas';renderQppBoard();};
+  $('#btnShowHiddenWeeks').onclick=()=>{state.qppShowHidden=!state.qppShowHidden;$('#btnShowHiddenWeeks').textContent=state.qppShowHidden?'Ocultar semanas marcadas':'Mostrar ocultas';save();renderQppBoard();};
   $('#btnHideQppWeek').onclick=()=>{const el=currentVisibleQppWeek();if(!el){toast('Nenhuma semana visível');return;}setQppWeekHidden(el.dataset.week,true);};
   $('#btnResetQppBoard').onclick=()=>{if(confirm('Restaurar o modelo original das 52 semanas? Todas as edições do QUADRO QPP serão perdidas.')){state.qppBoard=JSON.parse(JSON.stringify(QPP_BOARD_MODEL));state.qppBoardFilter='all';state.qppSelectedWeeks=[];state.qppShowHidden=false;save();renderQppBoard();log('QUADRO QPP restaurado','O mapa de 52 semanas voltou ao modelo original.');}};
   scroller.addEventListener('input',event=>{if(event.target.dataset.qppField)updateQppBoardField(event.target);});
