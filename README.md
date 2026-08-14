@@ -1,4 +1,16 @@
-# PSM Analytics Pro 2.18.0
+# PSM Analytics Pro 2.18.2
+
+## Correção 2.18.2 — atualização no celular
+
+- Ao voltar para uma aba no celular, a página consulta imediatamente a revisão mais recente do Supabase.
+- A leitura da base e os arquivos da aplicação solicitam conteúdo sem cache antigo.
+- A barra de status informa a revisão carregada do servidor.
+
+## Correção 2.18.1 — carregamento em qualquer página
+
+- A base salva no Supabase agora é carregada antes da conexão do canal em tempo real.
+- Se uma rede bloquear o canal em tempo real, a página continua sincronizando automaticamente a cada 15 segundos.
+- Uma tela de carregamento evita exibir dados locais ou de demonstração antes de concluir a leitura inicial do servidor.
 
 ## Alteração 2.18.0 — dados compartilhados no servidor
 

@@ -83,7 +83,7 @@
     }
 
     const suffix = data.updated_by ? ` por ${data.updated_by}` : '';
-    emit('online', options.initial ? 'Dados carregados do servidor' : `Atualizado${suffix}`, { revision });
+    emit('online', options.initial ? `Dados carregados do servidor · revisão ${revision}` : `Atualizado${suffix}`, { revision });
     return data;
   }
 
@@ -262,7 +262,10 @@
     emit('connecting', 'Conectando ao servidor…');
     try {
       client = global.supabase.createClient(config.url, config.publishableKey, {
-        auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+        auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+        global: {
+          fetch: (input, init = {}) => global.fetch(input, { ...init, cache: 'no-store' })
+        }
       });
 
       // Primeiro carrega a base via HTTP. Isso funciona mesmo quando uma rede
@@ -299,6 +302,15 @@
       })
       .catch(() => scheduleRetry());
   });
+
+  function refreshWhenVisible() {
+    if (!ready || global.document?.visibilityState === 'hidden') return;
+    fetchLatest().then(() => flush()).catch(() => scheduleRetry());
+  }
+
+  global.addEventListener('focus', refreshWhenVisible);
+  global.addEventListener('pageshow', refreshWhenVisible);
+  global.document?.addEventListener('visibilitychange', refreshWhenVisible);
 
   global.addEventListener('beforeunload', () => {
     if (pending && ready && !saving) flush().catch(() => {});
