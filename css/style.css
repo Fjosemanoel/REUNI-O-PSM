@@ -2121,3 +2121,25 @@ body[data-active-view]:not([data-active-view="dashboard"]):not([data-active-view
   animation:sync-startup-spin .8s linear infinite;
 }
 @keyframes sync-startup-spin{to{transform:rotate(360deg)}}
+
+.sync-bar{
+  display:flex;
+  align-items:center;
+  gap:9px;
+  margin:-8px 0 14px;
+  padding:9px 11px;
+  border:1px solid var(--border);
+  border-radius:11px;
+  background:color-mix(in srgb,var(--surface) 88%,#37b7e8);
+  color:var(--muted);
+  font-size:12px;
+}
+.sync-bar-dot{width:9px;height:9px;flex:0 0 9px;border-radius:50%;background:#f6b93b}
+.sync-bar[data-state="online"] .sync-bar-dot{background:#78aa22;box-shadow:0 0 0 4px rgba(120,170,34,.14)}
+.sync-bar[data-state="error"] .sync-bar-dot{background:#ff6678}
+.sync-bar #mobileSyncText{flex:1;min-width:0}
+.sync-bar button{padding:7px 10px;white-space:nowrap;font-size:11px}
+.sync-bar button:disabled{opacity:.65;cursor:wait}
+@media(max-width:720px){
+  .sync-bar{position:sticky;top:0;z-index:40;margin:-2px 0 10px;background:var(--surface);box-shadow:0 8px 22px rgba(0,31,67,.16)}
+}

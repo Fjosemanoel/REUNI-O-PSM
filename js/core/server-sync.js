@@ -20,6 +20,7 @@
   let pending = null;
   let lastSavedFingerprint = '';
   let lastRevision = 0;
+  let lastUpdatedAt = '';
 
   function emit(state, text, extra = {}) {
     global.dispatchEvent(new CustomEvent('psm:sync-status', {
@@ -65,8 +66,9 @@
     if (!data?.payload) return null;
 
     const revision = Number(data.revision) || 0;
-    if (!options.initial && revision && revision <= lastRevision) return data;
+    if (!options.initial && !options.force && revision && revision <= lastRevision) return data;
     lastRevision = revision;
+    lastUpdatedAt = data.updated_at || lastUpdatedAt;
     lastSavedFingerprint = fingerprint(data.payload);
     pending = null;
 
@@ -242,6 +244,26 @@
     return true;
   }
 
+  async function refresh() {
+    if (!client || !config) throw new Error('Servidor ainda não inicializado.');
+    emit('connecting', 'Buscando a revisão mais recente…');
+    if (pending && ready) await flush();
+    const data = await fetchLatest({ initial: !ready, force: true });
+    if (!data) throw new Error('Nenhuma base compartilhada encontrada no servidor.');
+    const wasReady = ready;
+    ready = true;
+    if (!wasReady) {
+      startPolling();
+      connectRealtime().catch(() => {});
+    }
+    emit('online', `Atualizado agora · revisão ${lastRevision}`, {
+      revision: lastRevision,
+      updatedAt: lastUpdatedAt,
+      forced: true
+    });
+    return { revision: lastRevision, updatedAt: lastUpdatedAt };
+  }
+
   async function start(options = {}) {
     if (started) return { configured: Boolean(client), ready };
     started = true;
@@ -318,10 +340,12 @@
 
   global.PSMServerSync = Object.freeze({
     start,
+    refresh,
     queueSave,
     flush,
     isConfigured,
     isApplyingRemote: () => applyingRemote,
-    isReady: () => ready
+    isReady: () => ready,
+    getStatus: () => ({ ready, revision: lastRevision, updatedAt: lastUpdatedAt, realtime: realtimeConnected })
   });
 })(window);

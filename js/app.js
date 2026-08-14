@@ -452,6 +452,9 @@ function updateServerSyncStatus(event){
   const dot=$('#saveStatus'),text=$('#saveStatusText');
   if(dot){dot.dataset.syncState=detail.state||'local';dot.title=detail.error||detail.text||'';}
   if(text)text.textContent=detail.text||'Cópia local ativa';
+  const syncBar=$('#syncBar'),mobileText=$('#mobileSyncText');
+  if(syncBar)syncBar.dataset.state=detail.state||'local';
+  if(mobileText)mobileText.textContent=detail.text||'Cópia local ativa';
   const startupText=$('#syncStartupText');
   if(startupText&&!$('#syncStartupOverlay')?.hidden&&detail.text)startupText.textContent=detail.text;
 }
@@ -1553,6 +1556,23 @@ function wireRequestedImprovements(){
 }
 
 function wire(){
+  $('#btnSyncNow')?.addEventListener('click',async event=>{
+    const button=event.currentTarget;
+    const original=button.textContent;
+    button.disabled=true;
+    button.textContent='Atualizando…';
+    try{
+      const result=await window.PSMServerSync?.refresh?.();
+      if(!result)throw new Error('Sincronização indisponível.');
+      toast(`Dados atualizados · revisão ${result.revision}`);
+    }catch(error){
+      console.error(error);
+      toast('Não foi possível atualizar. Verifique a conexão do celular.');
+    }finally{
+      button.disabled=false;
+      button.textContent=original;
+    }
+  });
   document.querySelectorAll('[data-sort]').forEach(button=>button.addEventListener('click',()=>setSort(button.dataset.sort)));
   document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>{
     if(!isViewAllowedInCurrentMode(b.dataset.view))return;

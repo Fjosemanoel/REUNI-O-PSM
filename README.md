@@ -1,4 +1,10 @@
-# PSM Analytics Pro 2.18.3
+# PSM Analytics Pro 2.18.4
+
+## Correção 2.18.4 — atualização forçada no celular
+
+- Um indicador visível informa a situação e a revisão recebida do Supabase.
+- O botão `Atualizar agora` força uma nova leitura completa do servidor.
+- No celular, o indicador permanece visível no topo enquanto a página é rolada.
 
 ## Correção 2.18.3 — limpeza completa dos filtros
 
