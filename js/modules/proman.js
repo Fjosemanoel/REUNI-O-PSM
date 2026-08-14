@@ -229,6 +229,8 @@
       panelFilters: { ...state.panelFilters },
       backlogFilters: { ...state.backlogFilters },
       backlogSort: { ...state.backlogSort },
+      activityTypes: customActivityTypes(),
+      removedActivityTypes: [...removedActivityTypes()],
       plants: {
         britagem: { ...state.plants.britagem, page: 1 },
         fabrica: { ...state.plants.fabrica, page: 1 }
@@ -238,6 +240,10 @@
 
   function restoreProjectData(payload, shouldRender = true) {
     if (!payload || typeof payload !== 'object') return;
+    if (Array.isArray(payload.activityTypes)) saveCustomActivityTypes(payload.activityTypes);
+    if (Array.isArray(payload.removedActivityTypes)) {
+      localStorage.setItem(REMOVED_ACTIVITY_TYPES_KEY, JSON.stringify(filterValues(payload.removedActivityTypes).map(upper)));
+    }
     state.activePlant = payload.activePlant === 'fabrica' ? 'fabrica' : 'britagem';
     const savedPanelFilters = payload.panelFilters || payload.plants?.[state.activePlant]?.filters || {};
     state.panelFilters = {
@@ -289,6 +295,42 @@
     reconcileContextualFilters(restoredRecords, state.backlogFilters, true);
     save();
     if (shouldRender) render();
+  }
+
+  function getSharedData() {
+    const sharedPlant = plant => ({
+      records: plant.records,
+      fileName: plant.fileName,
+      importedAt: plant.importedAt
+    });
+    return {
+      plants: {
+        britagem: sharedPlant(state.plants.britagem),
+        fabrica: sharedPlant(state.plants.fabrica)
+      },
+      activityTypes: customActivityTypes(),
+      removedActivityTypes: [...removedActivityTypes()]
+    };
+  }
+
+  function restoreSharedData(payload, shouldRender = true) {
+    if (!payload || typeof payload !== 'object') return;
+    const current = getProjectData();
+    const mergePlant = key => ({
+      ...current.plants[key],
+      ...(payload.plants?.[key] || {}),
+      filters: current.plants[key].filters,
+      page: 1
+    });
+    restoreProjectData({
+      ...current,
+      activityTypes: Array.isArray(payload.activityTypes) ? payload.activityTypes : current.activityTypes,
+      removedActivityTypes: Array.isArray(payload.removedActivityTypes) ? payload.removedActivityTypes : current.removedActivityTypes,
+      plants: {
+        britagem: mergePlant('britagem'),
+        fabrica: mergePlant('fabrica')
+      }
+    }, shouldRender);
   }
 
   function findDataSheet(workbook, expectedName) {
@@ -1059,6 +1101,8 @@
       saveCustomActivityTypes([...types, type]);
       const removed = removedActivityTypes(); removed.delete(type); localStorage.setItem(REMOVED_ACTIVITY_TYPES_KEY, JSON.stringify([...removed]));
       $('#promanNewType').value = ''; updateActivityTypeOptions(); renderTypeManager('Tipo adicionado.');
+      save();
+      global.dispatchEvent(new CustomEvent('psm:proman-changed'));
     });
     $('#promanTypeManagerList')?.addEventListener('click', event => {
       const type = event.target.closest('[data-proman-type-remove]')?.dataset.promanTypeRemove;
@@ -1068,6 +1112,8 @@
       saveCustomActivityTypes(customActivityTypes().filter(item => item !== type));
       const removed = removedActivityTypes(); removed.add(type); localStorage.setItem(REMOVED_ACTIVITY_TYPES_KEY, JSON.stringify([...removed]));
       updateActivityTypeOptions(); renderTypeManager('Tipo removido das opções. As atividades antigas foram preservadas.'); render();
+      save();
+      global.dispatchEvent(new CustomEvent('psm:proman-changed'));
     });
     $('#promanActivityDeadline')?.addEventListener('input', syncActivityDeadlineStatus);
     $('#promanActivityDeadline')?.addEventListener('change', syncActivityDeadlineStatus);
@@ -1216,5 +1262,5 @@
   load();
   wire();
   render();
-  global.PSMProMan = Object.freeze({ getProjectData, restoreProjectData, render, handleViewChange, setWorkspace, getDailyActivities, setDailyCompleted, setAccessMode });
+  global.PSMProMan = Object.freeze({ getProjectData, restoreProjectData, getSharedData, restoreSharedData, render, handleViewChange, setWorkspace, getDailyActivities, setDailyCompleted, setAccessMode });
 })(window);

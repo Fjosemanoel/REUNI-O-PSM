@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>PSM Analytics Pro</title>
   <link rel="preconnect" href="https://cdn.jsdelivr.net" />
-  <link rel="stylesheet" href="css/style.css?v=2.17.3" />
+  <link rel="stylesheet" href="css/style.css?v=2.18.0" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
@@ -132,7 +132,7 @@
         <button class="nav-item" data-view="promanAtaBritagem">▤ ATA 2</button>
       </nav>
       <div class="sidebar-footer-wrap">
-        <div class="sidebar-footer"><span id="saveStatus" class="status-dot"></span><span>Dados salvos localmente</span></div>
+        <div class="sidebar-footer"><span id="saveStatus" class="status-dot" data-sync-state="connecting"></span><span id="saveStatusText">Verificando servidor…</span></div>
         <div class="sidebar-signature">
           <strong>José Manoel Ferreira</strong>
           <a href="https://www.linkedin.com/in/jose-manoel-ferr" target="_blank" rel="noopener noreferrer">www.linkedin.com/in/jose-manoel-ferr</a>
@@ -599,10 +599,13 @@
   </dialog>
 
   <div id="toast" role="status"></div>
-  <script src="js/core/storage.js?v=2.17.3"></script>
-  <script src="js/modules/project.js?v=2.17.3"></script>
-  <script src="js/modules/report.js?v=2.17.3"></script>
-  <script src="js/modules/proman.js?v=2.17.3"></script>
-<script src="js/app.js?v=2.17.3"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config.js?v=2.18.0"></script>
+  <script src="js/core/server-sync.js?v=2.18.0"></script>
+  <script src="js/core/storage.js?v=2.18.0"></script>
+  <script src="js/modules/project.js?v=2.18.0"></script>
+  <script src="js/modules/report.js?v=2.18.0"></script>
+  <script src="js/modules/proman.js?v=2.18.0"></script>
+  <script src="js/app.js?v=2.18.0"></script>
 </body>
 </html>
