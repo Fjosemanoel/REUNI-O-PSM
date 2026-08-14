@@ -140,14 +140,14 @@
       await waitForSubscription(nextChannel);
       if (channel !== nextChannel) return false;
       realtimeConnected = true;
-      emit('online', 'Servidor conectado · tempo real ativo', { revision: lastRevision, realtime: true });
+      emit('online', `Servidor conectado · revisão ${lastRevision} · tempo real ativo`, { revision: lastRevision, realtime: true });
       return true;
     } catch (error) {
       console.warn('Canal em tempo real indisponível; atualização periódica continuará ativa.', error);
       if (channel === nextChannel) channel = null;
       realtimeConnected = false;
       try { await client.removeChannel?.(nextChannel); } catch {}
-      emit('online', 'Servidor conectado · atualização automática ativa', {
+      emit('online', `Servidor conectado · revisão ${lastRevision} · atualização automática ativa`, {
         revision: lastRevision,
         realtime: false
       });

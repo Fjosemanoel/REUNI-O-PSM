@@ -1636,7 +1636,18 @@ function wire(){
     $(`#filter${suffix}Options`).onchange=e=>{if(!e.target.matches('input[type=checkbox]'))return;state.lastFilterChanged=key;state.filters[key]=[...$(`#filter${suffix}Options`).querySelectorAll('input:checked')].map(input=>input.value);state.page=1;render();setMultiMenu(key,true);};
   });
   document.addEventListener('click',()=>setMultiMenu('',false));
-  $('#btnClearFilters').onclick=()=>{cancelGlobalSearchRender();state.filters=emptyFilterState();state.lastFilterChanged='';$('#globalSearch').value='';updateGlobalSearchCount();render();};
+  $('#btnClearFilters').onclick=()=>{
+    cancelGlobalSearchRender();
+    state.filters=emptyFilterState();
+    state.lastFilterChanged='';
+    state.capacityConsumptionOffice='';
+    state.capacityChartAreas=[];
+    $('#globalSearch').value='';
+    updateGlobalSearchCount();
+    save();
+    render();
+    toast('Todos os filtros foram limpos');
+  };
   $('#ordersBody').onclick=e=>{
     if(isViewerMode())return;
     const edit=e.target.dataset.edit,del=e.target.dataset.delete;

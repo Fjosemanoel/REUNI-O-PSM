@@ -1,4 +1,10 @@
-# PSM Analytics Pro 2.18.2
+# PSM Analytics Pro 2.18.3
+
+## Correção 2.18.3 — limpeza completa dos filtros
+
+- O botão `Limpar filtros` também redefine o filtro próprio do quadro de consumo de HH para `Todas as oficinas`.
+- A seleção local de áreas do gráfico de capacidade também é limpa.
+- O status da conexão mantém visível o número da revisão carregada do Supabase.
 
 ## Correção 2.18.2 — atualização no celular
 
