@@ -1,4 +1,10 @@
-# PSM Analytics Pro 2.18.7
+# PSM Analytics Pro 2.18.8
+
+## Correção 2.18.8 — envio garantido das configurações
+
+- O envio ao Supabase não é mais interrompido quando o armazenamento local do navegador está cheio.
+- Ao entrar no modo `Apresentação`, a semana marcada, as áreas e a oficina são publicadas imediatamente.
+- O modo `Visualizar` continua apenas recebendo essas configurações.
 
 ## Correção 2.18.7 — semana e áreas compartilhadas
 

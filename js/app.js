@@ -132,6 +132,7 @@ function activateAppMode(mode){
   if(mode==='presentation'){
     state.sharedPresentationSettings=captureSharedPresentationSettings();
     save();
+    window.PSMServerSync?.flush?.().catch(error=>console.error('Falha ao publicar as configurações da apresentação.',error));
   }
   requestAnimationFrame(()=>enforceViewerControls());
 }
@@ -423,13 +424,24 @@ function applySharedProjectData(payload,metadata={}){
   if(!metadata.initial&&appMode)toast(metadata.updatedBy?`Dados atualizados por ${metadata.updatedBy}`:'Dados atualizados por outro usuário');
 }
 function save(){
+  let localSaved=true;
   try{
     localStorage.setItem(STORAGE_KEY,JSON.stringify(getProjectData()));
     saveAccessFiltersForMode();
-    if(!window.PSMServerSync?.isApplyingRemote?.())window.PSMServerSync?.queueSave?.(getSharedProjectData(),currentAuditUser().username);
-    return true;
   }
-  catch(error){console.error('Falha no salvamento local:',error);toast('O navegador não conseguiu salvar os dados localmente.');return false;}
+  catch(error){
+    localSaved=false;
+    console.warn('A cópia local está cheia; o envio ao servidor continuará.',error);
+  }
+  let serverQueued=false;
+  try{
+    if(!window.PSMServerSync?.isApplyingRemote?.())serverQueued=Boolean(window.PSMServerSync?.queueSave?.(getSharedProjectData(),currentAuditUser().username));
+  }catch(error){
+    console.error('Falha ao preparar o envio ao servidor:',error);
+  }
+  if(!localSaved&&serverQueued)toast('Cópia local cheia · alterações enviadas ao servidor');
+  else if(!localSaved)toast('Não foi possível salvar no navegador. Verifique a conexão.');
+  return localSaved||serverQueued;
 }
 function projectFileName(){const week=String(getPlanningWeekData().week).padStart(2,'0');const date=new Date().toISOString().slice(0,10);return`PSM_Semana_${week}_${date}.psm`;}
 async function exportProject(){
