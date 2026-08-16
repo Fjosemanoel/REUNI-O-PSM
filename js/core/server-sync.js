@@ -39,8 +39,8 @@
       publishableKey: clean(source.publishableKey),
       workspaceId: clean(source.workspaceId) || 'psm-analytics-main',
       table: clean(source.table) || 'psm_shared_state',
-      saveDebounceMs: Math.max(150, Number(source.saveDebounceMs) || 600),
-      pollIntervalMs: Math.max(5000, Number(source.pollIntervalMs) || 15000)
+      saveDebounceMs: Math.max(150, Number(source.saveDebounceMs) || 900),
+      pollIntervalMs: Math.max(5000, Number(source.pollIntervalMs) || 30000)
     };
   }
 
@@ -99,12 +99,24 @@
       }, 12000);
 
       targetChannel.subscribe(status => {
-        if (settled) return;
+        if (settled) {
+          if (channel === targetChannel && (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED')) {
+            channel = null;
+            realtimeConnected = false;
+            client?.removeChannel?.(targetChannel).catch(() => {});
+            emit('online', `Servidor conectado · revisão ${lastRevision} · atualização automática ativa`, {
+              revision: lastRevision,
+              realtime: false
+            });
+            scheduleRealtimeReconnect();
+          }
+          return;
+        }
         if (status === 'SUBSCRIBED') {
           settled = true;
           global.clearTimeout(timeout);
           resolve();
-        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
           settled = true;
           global.clearTimeout(timeout);
           reject(new Error('Não foi possível abrir o canal em tempo real.'));
@@ -161,7 +173,9 @@
   function startPolling() {
     global.clearInterval(pollTimer);
     pollTimer = global.setInterval(() => {
-      if (!ready || saving) return;
+      // O canal em tempo real já avisa quando há mudança. Consultar toda a base
+      // enquanto ele está ativo apenas consome rede e pode travar aparelhos lentos.
+      if (!ready || saving || realtimeConnected) return;
       fetchLatest()
         .then(() => flush())
         .catch(error => {
@@ -171,7 +185,7 @@
     }, config.pollIntervalMs);
   }
 
-  async function writeSnapshot(snapshot, updatedBy = '') {
+  async function writeSnapshot(snapshot, updatedBy = '', snapshotFingerprint = '') {
     const row = {
       workspace_id: config.workspaceId,
       payload: snapshot,
@@ -186,7 +200,7 @@
     if (error) throw error;
 
     lastRevision = Number(data?.revision) || lastRevision;
-    lastSavedFingerprint = fingerprint(snapshot);
+    lastSavedFingerprint = snapshotFingerprint || fingerprint(snapshot);
     if (channel && realtimeConnected) {
       channel.send({
         type: 'broadcast',
@@ -212,10 +226,17 @@
 
     const job = pending;
     pending = null;
+    // A serialização de bases grandes acontece somente depois do debounce,
+    // fora do clique/digitação que solicitou o salvamento.
+    const jobFingerprint = fingerprint(job.snapshot);
+    if (!jobFingerprint || jobFingerprint === lastSavedFingerprint) {
+      emit('online', `Dados sincronizados · revisão ${lastRevision}`, { revision: lastRevision });
+      return false;
+    }
     saving = true;
     emit('saving', 'Salvando no servidor…');
     try {
-      await writeSnapshot(job.snapshot, job.updatedBy);
+      await writeSnapshot(job.snapshot, job.updatedBy, jobFingerprint);
       emit('online', 'Dados salvos no servidor', { revision: lastRevision });
       return true;
     } catch (error) {
@@ -234,9 +255,7 @@
 
   function queueSave(snapshot, updatedBy = '') {
     if (!isConfigured() || applyingRemote || !snapshot) return false;
-    const nextFingerprint = fingerprint(snapshot);
-    if (!nextFingerprint || nextFingerprint === lastSavedFingerprint || nextFingerprint === pending?.fingerprint) return false;
-    pending = { snapshot, updatedBy, fingerprint: nextFingerprint };
+    pending = { snapshot, updatedBy };
     if (!ready) return true;
     emit('saving', 'Alterações aguardando envio…');
     global.clearTimeout(saveTimer);

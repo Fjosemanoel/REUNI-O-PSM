@@ -351,13 +351,15 @@ function currentAuditUser(){
   const session=readPresentationSession();
   return session?{userId:session.userId||session.identity,username:session.identity}:{userId:'unknown',username:'Não identificado'};
 }
-function log(action,details){const audit=currentAuditUser();state.history.unshift({id:uid(),date:new Date().toISOString(),action,details,...audit});state.history=state.history.slice(0,500);save();renderHistory();}
+function log(action,details){const audit=currentAuditUser();state.history.unshift({id:uid(),date:new Date().toISOString(),action,details,...audit});state.history=state.history.slice(0,500);save();if(state.activeView==='historico')renderHistory();}
 function syncActiveFilterBank(){
   if(state.activeFilterView==='dashboard'||state.activeFilterView==='ordens')state.filtersByView[state.activeFilterView]=cloneFilterState(state.filters);
 }
-function getProjectData(){
+function getProjectData(options={}){
   syncActiveFilterBank();
-  return{orders:state.orders,systematicCatalog:state.systematicCatalog,systematicCatalogMeta:state.systematicCatalogMeta,capacity:state.capacity,capacityChartAreas:state.capacityChartAreas,capacityConsumptionOffice:state.capacityConsumptionOffice,dailySelectedWeek:state.dailySelectedWeek,dailySelectedDay:state.dailySelectedDay,dailySelectedPromanPlants:state.dailySelectedPromanPlants,dailySelectedOffices:state.dailySelectedOffices,dailyObservations:state.dailyObservations,history:state.history,qppBoard:state.qppBoard,qppSelectedWeeks:state.qppSelectedWeeks,meetings:state.meetings,filtersByView:state.filtersByView,proman:window.PSMProMan?.getProjectData?.()||null};
+  const project={orders:state.orders,systematicCatalog:state.systematicCatalog,systematicCatalogMeta:state.systematicCatalogMeta,capacity:state.capacity,capacityChartAreas:state.capacityChartAreas,capacityConsumptionOffice:state.capacityConsumptionOffice,dailySelectedWeek:state.dailySelectedWeek,dailySelectedDay:state.dailySelectedDay,dailySelectedPromanPlants:state.dailySelectedPromanPlants,dailySelectedOffices:state.dailySelectedOffices,dailyObservations:state.dailyObservations,history:state.history,qppBoard:state.qppBoard,qppSelectedWeeks:state.qppSelectedWeeks,meetings:state.meetings,filtersByView:state.filtersByView};
+  if(options.includeProman!==false)project.proman=window.PSMProMan?.getProjectData?.()||null;
+  return project;
 }
 function captureSharedPresentationSettings(){
   return{
@@ -418,15 +420,17 @@ function applySharedProjectData(payload,metadata={}){
   else window.PSMProMan?.restoreProjectData?.(payload.proman,false);
   ensureQppBoard();
   ensureMeetings();
-  try{localStorage.setItem(STORAGE_KEY,JSON.stringify(getProjectData()));}catch(error){console.warn('Não foi possível atualizar a cópia local.',error);}
+  try{localStorage.setItem(STORAGE_KEY,JSON.stringify(getProjectData({includeProman:false})));}catch(error){console.warn('Não foi possível atualizar a cópia local.',error);}
   render();
-  window.PSMProMan?.render?.();
+  if(state.activeView.startsWith('proman'))window.PSMProMan?.render?.();
   if(!metadata.initial&&appMode)toast(metadata.updatedBy?`Dados atualizados por ${metadata.updatedBy}`:'Dados atualizados por outro usuário');
 }
 function save(){
   let localSaved=true;
   try{
-    localStorage.setItem(STORAGE_KEY,JSON.stringify(getProjectData()));
+    // O PROMAN já mantém sua própria cópia local. Evitar a duplicação reduz
+    // bastante o tempo de bloqueio do navegador ao salvar bases grandes.
+    localStorage.setItem(STORAGE_KEY,JSON.stringify(getProjectData({includeProman:false})));
     saveAccessFiltersForMode();
   }
   catch(error){
@@ -586,7 +590,24 @@ function chart(name,canvas,config){destroyChart(name);if(!window.Chart||!$(canva
 function vcTheme(){const css=getComputedStyle(document.documentElement);return{blue:'#004ea2',blue2:'#007fc4',green:'#98ca3d',green2:'#6fae2c',cyan:'#37b7e8',yellow:'#f6b93b',orange:'#ef7d32',white:'#fcfeff',muted:css.getPropertyValue('--muted').trim()||'#b6cce1',grid:'rgba(112,159,199,.18)',palette:['#004ea2','#98ca3d','#37b7e8','#f6b93b','#6fae2c','#007fc4','#ef7d32','#75aadb','#c4df76','#0b609f']};}
 function chartOpts(horizontal=false){const c=vcTheme();return{responsive:true,maintainAspectRatio:false,indexAxis:horizontal?'y':'x',layout:{padding:{top:18,right:horizontal?82:18}},plugins:{legend:{labels:{color:c.muted,usePointStyle:true,pointStyle:'circle'}},tooltip:{mode:'index',intersect:false,backgroundColor:'rgba(0,38,80,.96)',titleColor:c.white,bodyColor:c.white,borderColor:c.green,borderWidth:1}},scales:{x:{ticks:{color:c.muted},grid:{color:c.grid},border:{color:c.grid}},y:{ticks:{color:c.muted},grid:{color:c.grid},border:{color:c.grid}}}};}
 
-function render(){renderFilters();renderKPIs();renderCharts();renderCapacityConsumption();renderTable();renderHistory();renderLists();renderCapacity();renderSystematicStatus();renderDailyPlan();renderQppBoard();renderMeetings();applyAccessModeUI();}
+function render(){
+  const view=state.activeView;
+  renderLists();
+  renderSystematicStatus();
+  if($('#capacityDialog')?.open)renderCapacity();
+  if(view==='dashboard'){
+    renderFilters();renderKPIs();renderCharts();
+  }else if(view==='ordens'){
+    renderFilters();renderCapacityConsumption();renderTable();
+  }else if(view==='historico')renderHistory();
+  else if(view==='programacao')renderDailyPlan();
+  else if(view==='quadro')renderQppBoard();
+  else if(view==='ataFab')renderMeeting('fab');
+  else if(view==='ataBrit')renderMeeting('brit');
+  else if(view==='promanAtaFabrica')renderMeeting('promanFab');
+  else if(view==='promanAtaBritagem')renderMeeting('promanBrit');
+  applyAccessModeUI();
+}
 const multiFilterConfig={
   qpp:{allLabel:'Classificação: Todas',singular:'classificação',plural:'classificações'},
   tipoOrdem:{allLabel:'Todos os tipos',singular:'tipo',plural:'tipos'},
@@ -941,9 +962,10 @@ async function importSystematicWorkbook(file){
   if(!sheetName)throw new Error('Aba BASE SIST não encontrada. Selecione o arquivo SISTEMÁTICAS.xlsb.');
   state.systematicCatalog=parseSystematicCatalogSheet(wb.Sheets[sheetName]);
   state.systematicCatalogMeta={fileName:file.name,importedAt:new Date().toISOString(),total:state.systematicCatalog.length};
-  log('Catálogo SISTEMÁTICAS carregado',`${state.systematicCatalog.length} ordens disponíveis para consulta em massa. Nenhuma ordem foi adicionada automaticamente ao backlog.`);
-  save();render();
-  toast(`${state.systematicCatalog.length} sistemáticas disponíveis`);
+  const updated=synchronizeSystematicBacklog(state.systematicCatalog);
+  log('Catálogo SISTEMÁTICAS carregado',`${state.systematicCatalog.length} ordens disponíveis. ${updated} ordem(ns) sistemática(s) que já estavam no backlog foram atualizadas com a nova base.`);
+  render();
+  toast(`${state.systematicCatalog.length} disponíveis · ${updated} no backlog atualizada(s)`);
 }
 
 function parseBulkOrderNumbers(value){
@@ -952,6 +974,40 @@ function parseBulkOrderNumbers(value){
 }
 function systematicOrderFromCatalog(item){
   return normalizeOrderRecord({...item,id:uid(),qpp:'Rotina',observacoes:'',realizado:false,tipoOrdem:'SISTEMÁTICA',source:'sistematica'});
+}
+function mergeSystematicOrder(existing,item){
+  return normalizeOrderRecord({
+    ...existing,
+    ...item,
+    id:existing.id||uid(),
+    qpp:normalize(existing.qpp)||'Rotina',
+    observacoes:existing.observacoes||'',
+    realizado:existing.realizado??false,
+    tipoOrdem:'SISTEMÁTICA',
+    source:'sistematica'
+  });
+}
+function synchronizeSystematicBacklog(catalogItems){
+  const catalog=new Map((catalogItems||[]).map(item=>[normalize(item.ordem),item]));
+  let updated=0;
+  state.orders=state.orders.map(order=>{
+    if(orderTypeValue(order)!=='SISTEMÁTICA')return order;
+    const item=catalog.get(normalize(order.ordem));
+    if(!item)return order;
+    updated++;
+    return mergeSystematicOrder(order,item);
+  });
+  return updated;
+}
+function clearSystematicData(){
+  const catalogTotal=state.systematicCatalog.length;
+  const backlogIds=new Set(state.orders.filter(order=>orderTypeValue(order)==='SISTEMÁTICA').map(order=>order.id));
+  state.systematicCatalog=[];
+  state.systematicCatalogMeta={fileName:'',importedAt:'',total:0};
+  state.orders=state.orders.filter(order=>!backlogIds.has(order.id));
+  state.dailyObservations=Object.fromEntries(Object.entries(state.dailyObservations).filter(([key])=>!backlogIds.has(key.slice(key.lastIndexOf(':')+1))));
+  state.page=1;
+  return{catalogTotal,backlogTotal:backlogIds.size};
 }
 function renderBulkOrderResult(result=null){
   const target=$('#bulkOrdersResult');if(!target)return;
@@ -1420,15 +1476,15 @@ function switchViewContext(view){
   if(mainTitle&&view==='dashboard')mainTitle.textContent='DASHBOARD PSM';
   if(mainTitle&&view==='ordens')mainTitle.textContent='BACKLOG';
   setMultiMenu('',false);
-  if(!hasGeneralFilters)return;
-
-  state.activeFilterView=view;
-  state.filters=cloneFilterState(state.filtersByView[view]);
-  if(isViewerMode()&&view==='ordens')state.filters.qpp=state.filters.qpp.filter(value=>['Rotina','QPP'].includes(value));
-  state.lastFilterChanged='';
-  state.page=1;
-  const search=$('#globalSearch');
-  if(search)search.value=state.filters.search;
+  if(hasGeneralFilters){
+    state.activeFilterView=view;
+    state.filters=cloneFilterState(state.filtersByView[view]);
+    if(isViewerMode()&&view==='ordens')state.filters.qpp=state.filters.qpp.filter(value=>['Rotina','QPP'].includes(value));
+    state.lastFilterChanged='';
+    state.page=1;
+    const search=$('#globalSearch');
+    if(search)search.value=state.filters.search;
+  }
   render();
 }
 
@@ -1599,7 +1655,7 @@ function wireRequestedImprovements(){
     state.capacityChartAreas=[...selected];save();renderCapacity();renderCharts();renderCapacityConsumption();
     toast(state.capacityChartAreas.length?'Áreas do gráfico atualizadas':'O gráfico voltou a exibir todas as áreas');
   });
-  window.addEventListener('psm:proman-changed',()=>{renderDailyPlan();save();});
+  window.addEventListener('psm:proman-changed',()=>{if(state.activeView==='programacao')renderDailyPlan();save();});
 }
 
 function wire(){
@@ -1630,13 +1686,13 @@ function wire(){
   $('#fileInput').addEventListener('change',e=>{const file=e.target.files[0];if(file)importWorkbook(file).catch(err=>{console.error(err);toast(err.message);});e.target.value='';});
   $('#systematicFileInput').addEventListener('change',e=>{const file=e.target.files[0];if(file)importSystematicWorkbook(file).catch(err=>{console.error(err);toast(err.message);});e.target.value='';});
   $('#btnClearSystematics').onclick=()=>{
-    if(!state.systematicCatalog.length){toast('O banco de SISTEMÁTICAS já está vazio');return;}
     const total=state.systematicCatalog.length;
-    if(confirm(`Tem certeza que deseja apagar as ${total} ordens do catálogo SISTEMÁTICAS? As ordens já adicionadas ao backlog serão preservadas.`)){
-      state.systematicCatalog=[];
-      state.systematicCatalogMeta={fileName:'',importedAt:'',total:0};
-      log('Banco de SISTEMÁTICAS limpo',`${total} ordens foram removidas do catálogo. O backlog foi preservado.`);
-      save();render();renderBulkOrderResult(null);toast('Banco de SISTEMÁTICAS limpo');
+    const backlogTotal=state.orders.filter(order=>orderTypeValue(order)==='SISTEMÁTICA').length;
+    if(!total&&!backlogTotal){toast('O banco de SISTEMÁTICAS e o backlog já estão vazios');return;}
+    if(confirm(`Tem certeza que deseja apagar ${total} ordem(ns) do catálogo e ${backlogTotal} ordem(ns) sistemática(s) do backlog?`)){
+      const removed=clearSystematicData();
+      log('Banco de SISTEMÁTICAS limpo',`${removed.catalogTotal} ordens foram removidas do catálogo e ${removed.backlogTotal} ordem(ns) sistemática(s) foram removidas do backlog.`);
+      render();renderBulkOrderResult(null);toast(`SISTEMÁTICAS limpas · ${removed.backlogTotal} removida(s) do backlog`);
     }
   };
   $('#btnSaveProject').onclick=exportProject;

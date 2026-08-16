@@ -32,6 +32,7 @@
   let panelSearchTimer = 0;
   let backlogSearchTimer = 0;
   let accessMode = '';
+  let activeView = '';
 
   function accessFilterBanks() {
     try { return JSON.parse(localStorage.getItem(ACCESS_FILTERS_KEY)) || {}; } catch { return {}; }
@@ -943,7 +944,12 @@
 
   function render() {
     if (!$('#promanView')) return;
+    if (activeView !== 'proman' && activeView !== 'promanBacklog') return;
     refreshAutomaticStatuses();
+    if (activeView === 'promanBacklog') {
+      renderBacklog();
+      return;
+    }
     renderHeader();
     const records = filteredRecords();
     renderKpis(records);
@@ -1012,6 +1018,7 @@
   }
 
   function handleViewChange(view) {
+    activeView = String(view || '');
     const proman = String(view || '').startsWith('proman');
     const title = $('#mainPageTitle');
     const subtitle = $('#subtitle');
@@ -1019,7 +1026,6 @@
     if (subtitle) subtitle.hidden = proman;
     if (proman) {
       render();
-      if (view === 'promanBacklog') renderBacklog();
     }
   }
 

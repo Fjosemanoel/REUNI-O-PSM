@@ -1738,7 +1738,7 @@ body[data-active-view]:not([data-active-view="dashboard"]):not([data-active-view
 }
 .bulk-orders-input textarea:focus{outline:none;border-color:#98ca3d;box-shadow:0 0 0 3px rgba(152,202,61,.16)}
 .bulk-order-actions{display:flex;justify-content:flex-end;gap:8px;margin:12px 0}
-.bulk-orders-result{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px}
+.bulk-orders-result{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-top:12px}
 .bulk-result-empty{grid-column:1/-1;margin:0;padding:18px;border:1px dashed var(--border);border-radius:10px;color:var(--muted);text-align:center}
 .bulk-result-section{min-width:0;padding:12px;border:1px solid var(--border);border-radius:11px;background:var(--surface2)}
 .bulk-result-section h3{display:flex;justify-content:space-between;gap:8px;margin:0 0 9px;font-size:13px}

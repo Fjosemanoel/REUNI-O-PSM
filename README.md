@@ -1,4 +1,12 @@
-# PSM Analytics Pro 2.18.8
+# PSM Analytics Pro 2.18.9
+
+## Correção 2.18.9 — sistemáticas sincronizadas e desempenho
+
+- Ao limpar a base SISTEMÁTICAS, as ordens sistemáticas também são removidas do backlog.
+- Uma nova importação atualiza os dados das sistemáticas que já estavam no backlog, preservando classificação, observações e realizado.
+- Apenas a tela aberta é redesenhada, reduzindo travamentos em bases grandes.
+- O envio ao Supabase é agrupado e a consulta periódica pesada fica suspensa enquanto o tempo real está conectado.
+- A base PROMAN deixa de ser duplicada na cópia local principal.
 
 ## Correção 2.18.8 — envio garantido das configurações
 
