@@ -239,6 +239,7 @@ body[data-app-mode="viewer"] .meeting-row-action-column{display:none!important}
 .meeting-action-status.is-pending{background:#ffe100;color:#111}
 @media(max-width:900px){.meeting-header h2{font-size:30px}.meeting-participants-grid{gap:30px}.meeting-page{padding:5px}}
 @media print{
+body[data-print-qpp="true"] .sync-bar,body[data-print-meeting] .sync-bar{display:none!important}
 body[data-print-meeting="fab"] .sidebar,body[data-print-meeting="fab"] .topbar,body[data-print-meeting="fab"] .toolbar,body[data-print-meeting="fab"] .view:not(#ataFabView),
 body[data-print-meeting="brit"] .sidebar,body[data-print-meeting="brit"] .topbar,body[data-print-meeting="brit"] .toolbar,body[data-print-meeting="brit"] .view:not(#ataBritView),
 body[data-print-meeting="promanFab"] .sidebar,body[data-print-meeting="promanFab"] .topbar,body[data-print-meeting="promanFab"] .toolbar,body[data-print-meeting="promanFab"] .view:not(#promanAtaFabricaView),

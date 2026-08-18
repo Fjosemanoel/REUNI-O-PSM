@@ -1,4 +1,10 @@
-# PSM Analytics Pro 2.18.10
+# PSM Analytics Pro 2.18.11
+
+## Correção 2.18.11 — impressão limpa
+
+- A barra `Servidor conectado / Atualizar agora` não aparece mais na impressão das atas.
+- A mesma barra também fica oculta ao imprimir o Quadro QPP.
+- A barra continua visível normalmente durante o uso do sistema.
 
 ## Correção 2.18.10 — atas e status PROMAN
 
