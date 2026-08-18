@@ -280,7 +280,8 @@
           source: record.source === 'manual' ? 'manual' : 'imported',
           activityType: upper(record.activityType || 'NÃO'),
           completionDate: parseExcelDate(record.completionDate),
-          status: automaticStatus(record.deadline, record.status)
+          status: automaticStatus(record.deadline, record.status),
+          realizado: /CONCLU/.test(upper(record.status))
         })) : [],
         filters: {
           search: normalize(source.filters?.search),
@@ -457,17 +458,12 @@
       if (!record && expectedOs) record = state.plants[plantKey].records.find(item => plain(item.os) === expectedOs);
       if (!record && expectedWhat) record = state.plants[plantKey].records.find(item => plain(item.what) === expectedWhat);
       if (!record) continue;
-      record.realizado = Boolean(completed);
       if (completed) {
-        if (!isCompleted(record)) record.statusBeforeCompletion = record.status;
-        record.status = 'CONCLUÍDA';
-        record.completionDate = todayIso();
+        applyPromanStatus(record, 'CONCLUÍDA');
       } else {
-        record.status = automaticStatus(record.deadline, record.statusBeforeCompletion || 'NO PRAZO');
-        record.completionDate = '';
-        delete record.statusBeforeCompletion;
+        const restoreStatus = record.statusBeforeCompletion || 'NO PRAZO';
+        applyPromanStatus(record, restoreStatus);
       }
-      record.updatedAt = new Date().toISOString();
       save();
       global.dispatchEvent(new CustomEvent('psm:proman-changed'));
       try {
@@ -536,6 +532,28 @@
     if (!BACKLOG_STATUS_SET.has(plain(current))) return current;
     if (deadline < todayIso()) return 'ATRASADA';
     return current;
+  }
+
+  function applyPromanStatus(record, requestedStatus) {
+    const previous = upper(record.status) || 'NO PRAZO';
+    const requested = upper(requestedStatus) || 'NO PRAZO';
+    const next = automaticStatus(record.deadline, requested);
+    const wasCompleted = /CONCLU/.test(previous);
+    const wasRealized = record.realizado === true;
+    const completed = /CONCLU/.test(next);
+    if (completed) {
+      if (!wasCompleted) record.statusBeforeCompletion = previous;
+      record.status = 'CONCLUÍDA';
+      record.realizado = true;
+      if (!record.completionDate) record.completionDate = todayIso();
+    } else {
+      record.status = next;
+      record.realizado = false;
+      if (wasCompleted || wasRealized || /CANCEL/.test(next)) record.completionDate = '';
+      delete record.statusBeforeCompletion;
+    }
+    record.updatedAt = new Date().toISOString();
+    return { previous, status: record.status };
   }
 
   function refreshAutomaticStatuses() {
@@ -635,6 +653,7 @@
     const id = normalize($('#promanActivityId').value);
     const existing = id ? findPromanRecord(id) : null;
     const plantKey = $('#promanActivityPlant').value === 'fabrica' ? 'fabrica' : 'britagem';
+    const requestedStatus = $('#promanActivityStatus').value;
     const record = {
       id: existing?.record.id || `proman-manual-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       date: $('#promanActivityDate').value,
@@ -643,15 +662,18 @@
       who: upper($('#promanActivityWho').value),
       deadline: $('#promanActivityDeadline').value,
       completionDate: $('#promanActivityCompletionDate').value,
-      status: automaticStatus($('#promanActivityDeadline').value, $('#promanActivityStatus').value),
+      status: existing?.record.status || requestedStatus,
       activityType: upper($('#promanActivityType').value) || 'NÃO',
       os: upper($('#promanActivityOs').value),
       notes: normalize($('#promanActivityNotes').value),
       plant: plantKey,
       source: existing?.record.source || 'manual',
+      realizado: existing?.record.realizado === true,
+      statusBeforeCompletion: existing?.record.statusBeforeCompletion,
       createdAt: existing?.record.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
+    applyPromanStatus(record, requestedStatus);
     if (existing) state.plants[existing.plantKey].records.splice(existing.index, 1);
     state.plants[plantKey].records.push(record);
     state.activePlant = plantKey;
@@ -1198,14 +1220,11 @@
       if (!select || document.body.dataset.appMode === 'viewer') return;
       const found = findPromanRecord(select.dataset.promanStatusId);
       if (!found) return;
-      const previous = found.record.status;
-      found.record.status = automaticStatus(found.record.deadline, select.value);
-      if (isCompleted(found.record) && !found.record.completionDate) found.record.completionDate = todayIso();
-      found.record.updatedAt = new Date().toISOString();
+      const change = applyPromanStatus(found.record, select.value);
       save();
       render();
       global.dispatchEvent(new CustomEvent('psm:proman-changed'));
-      global.dispatchEvent(new CustomEvent('psm:toast', { detail: `Status alterado: ${previous} → ${found.record.status}` }));
+      global.dispatchEvent(new CustomEvent('psm:toast', { detail: `Status alterado: ${change.previous} → ${change.status}` }));
     });
     $('#promanBacklogBody')?.addEventListener('focusout', event => {
       if (document.body.dataset.appMode === 'viewer') return;

@@ -89,6 +89,15 @@
     return data;
   }
 
+  async function fetchLatestAfterPending(options = {}) {
+    // Nunca substitui uma alteração local que ainda está sendo enviada.
+    // Se já houver um envio em andamento, uma próxima notificação/foco fará a leitura.
+    if (saving) return null;
+    if (pending) await flush();
+    if (saving || pending) return null;
+    return fetchLatest(options);
+  }
+
   function waitForSubscription(targetChannel) {
     return new Promise((resolve, reject) => {
       let settled = false;
@@ -131,7 +140,7 @@
       .on('broadcast', { event: 'data-updated' }, message => {
         const payload = message?.payload || {};
         if (payload.workspaceId !== config.workspaceId || payload.clientId === clientId) return;
-        fetchLatest().catch(error => {
+        fetchLatestAfterPending().catch(error => {
           console.error('Falha ao receber atualização do servidor.', error);
           emit('error', 'Falha ao receber atualização');
         });
@@ -176,8 +185,7 @@
       // O canal em tempo real já avisa quando há mudança. Consultar toda a base
       // enquanto ele está ativo apenas consome rede e pode travar aparelhos lentos.
       if (!ready || saving || realtimeConnected) return;
-      fetchLatest()
-        .then(() => flush())
+      fetchLatestAfterPending()
         .catch(error => {
           console.error('Falha na atualização periódica.', error);
           emit('error', 'Sem conexão — cópia local preservada', { error: error?.message || String(error) });
@@ -266,8 +274,7 @@
   async function refresh() {
     if (!client || !config) throw new Error('Servidor ainda não inicializado.');
     emit('connecting', 'Buscando a revisão mais recente…');
-    if (pending && ready) await flush();
-    const data = await fetchLatest({ initial: !ready, force: true });
+    const data = await fetchLatestAfterPending({ initial: !ready, force: true });
     if (!data) throw new Error('Nenhuma base compartilhada encontrada no servidor.');
     const wasReady = ready;
     ready = true;
@@ -336,8 +343,7 @@
 
   global.addEventListener('online', () => {
     if (!ready) return;
-    fetchLatest()
-      .then(() => flush())
+    fetchLatestAfterPending()
       .then(() => {
         if (!realtimeConnected) connectRealtime().catch(() => {});
       })
@@ -346,7 +352,7 @@
 
   function refreshWhenVisible() {
     if (!ready || global.document?.visibilityState === 'hidden') return;
-    fetchLatest().then(() => flush()).catch(() => scheduleRetry());
+    fetchLatestAfterPending().catch(() => scheduleRetry());
   }
 
   global.addEventListener('focus', refreshWhenVisible);

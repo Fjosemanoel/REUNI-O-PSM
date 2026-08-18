@@ -1,4 +1,12 @@
-# PSM Analytics Pro 2.18.9
+# PSM Analytics Pro 2.18.10
+
+## Correção 2.18.10 — atas e status PROMAN
+
+- Cada linha das três tabelas de ações das atas PROMAN agora possui o botão `REMOVER`.
+- A remoção pede confirmação e é sincronizada com os demais usuários.
+- Alterar o status do Backlog PROMAN para `CONCLUÍDA` também marca a atividade como realizada e preenche a data de conclusão.
+- Ao retirar o status de concluída, a marcação de realizado e a data de conclusão são limpas de forma coerente.
+- Alterações locais pendentes são enviadas antes de uma nova leitura do Supabase, evitando que o status recém-alterado volte ao valor anterior.
 
 ## Correção 2.18.9 — sistemáticas sincronizadas e desempenho
 
