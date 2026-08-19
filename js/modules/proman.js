@@ -556,6 +556,19 @@
     return { previous, status: record.status };
   }
 
+  function applyPromanCompletionDate(record, value) {
+    const completionDate = parseExcelDate(value);
+    if (completionDate) {
+      record.completionDate = completionDate;
+      return applyPromanStatus(record, 'CONCLUÍDA');
+    }
+    const restoreStatus = record.statusBeforeCompletion || 'NO PRAZO';
+    record.completionDate = '';
+    if (/CONCLU/.test(upper(record.status)) || record.realizado === true) return applyPromanStatus(record, restoreStatus);
+    record.updatedAt = new Date().toISOString();
+    return { previous: upper(record.status), status: record.status };
+  }
+
   function refreshAutomaticStatuses() {
     let changed = false;
     Object.values(state.plants).forEach(plant => plant.records.forEach(record => {
@@ -673,7 +686,8 @@
       createdAt: existing?.record.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
-    applyPromanStatus(record, requestedStatus);
+    if (record.completionDate) applyPromanCompletionDate(record, record.completionDate);
+    else applyPromanStatus(record, requestedStatus);
     if (existing) state.plants[existing.plantKey].records.splice(existing.index, 1);
     state.plants[plantKey].records.push(record);
     state.activePlant = plantKey;
@@ -1208,12 +1222,11 @@
       if (completionInput && document.body.dataset.appMode !== 'viewer') {
         const found = findPromanRecord(completionInput.dataset.promanCompletionId);
         if (!found) return;
-        found.record.completionDate = parseExcelDate(completionInput.value);
-        found.record.updatedAt = new Date().toISOString();
+        const change = applyPromanCompletionDate(found.record, completionInput.value);
         save();
         render();
         global.dispatchEvent(new CustomEvent('psm:proman-changed'));
-        global.dispatchEvent(new CustomEvent('psm:toast', { detail: 'Data de conclusão atualizada' }));
+        global.dispatchEvent(new CustomEvent('psm:toast', { detail: completionInput.value ? 'Conclusão registrada · status alterado para CONCLUÍDA' : `Data de conclusão removida · status ${change.status}` }));
         return;
       }
       const select = event.target.closest('[data-proman-status-id]');

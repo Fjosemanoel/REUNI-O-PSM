@@ -1,4 +1,11 @@
-# PSM Analytics Pro 2.18.11
+# PSM Analytics Pro 2.18.12
+
+## Correção 2.18.12 — conclusão automática PROMAN
+
+- Ao informar uma data de conclusão no Backlog PROMAN, o status muda automaticamente para `CONCLUÍDA`.
+- A atividade também fica marcada como realizada e é sincronizada com os demais usuários.
+- Ao apagar a data de conclusão, o status anterior é restaurado automaticamente.
+- A mesma regra é aplicada ao salvar uma atividade pelo formulário PROMAN.
 
 ## Correção 2.18.11 — impressão limpa
 
