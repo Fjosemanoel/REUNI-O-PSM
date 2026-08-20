@@ -420,10 +420,20 @@
 
   function dailyActivityId(plantKey, recordIdValue) { return `proman:${plantKey}:${recordIdValue}`; }
 
-  function getDailyActivities() {
+  function dailyRecordIsVisible(record, startDate = '', endDate = '') {
+    const completed = record.realizado === true || isCompleted(record);
+    if (!completed) return ['ATRASADA', 'NO PRAZO'].includes(plain(record.status));
+    if (!startDate && !endDate) return true;
+    const completionDate = parseExcelDate(record.completionDate);
+    return Boolean(completionDate) && (!startDate || completionDate >= startDate) && (!endDate || completionDate <= endDate);
+  }
+
+  function getDailyActivities(options = {}) {
     refreshAutomaticStatuses();
+    const startDate = parseExcelDate(options.startDate);
+    const endDate = parseExcelDate(options.endDate);
     return Object.keys(PLANT_CONFIG).flatMap(plantKey => state.plants[plantKey].records
-      .filter(record => record.realizado === true || ['ATRASADA', 'NO PRAZO'].includes(plain(record.status)))
+      .filter(record => dailyRecordIsVisible(record, startDate, endDate))
       .map(record => ({
         id: dailyActivityId(plantKey, record.id),
         promanRecordId: record.id,
@@ -437,6 +447,7 @@
         equipamento: record.tag,
         responsavel: record.who,
         date: record.date,
+        completionDate: parseExcelDate(record.completionDate),
         qpp: 'Rotina',
         tipoOrdem: 'NÃO SISTEMÁTICA',
         hh: 0,
@@ -445,7 +456,7 @@
       })));
   }
 
-  function setDailyCompleted(dailyId, completed, recordIdValue = '', plantHint = '', osHint = '', whatHint = '') {
+  function setDailyCompleted(dailyId, completed, recordIdValue = '', plantHint = '', osHint = '', whatHint = '', completionDateHint = '') {
     const hintedPlant = PLANT_CONFIG[plantHint] ? plantHint : '';
     const plants = hintedPlant ? [hintedPlant] : Object.keys(PLANT_CONFIG);
     for (const plantKey of plants) {
@@ -459,13 +470,13 @@
       if (!record && expectedWhat) record = state.plants[plantKey].records.find(item => plain(item.what) === expectedWhat);
       if (!record) continue;
       if (completed) {
-        applyPromanStatus(record, 'CONCLUÍDA');
+        applyPromanCompletionDate(record, completionDateHint || todayIso());
       } else {
         const restoreStatus = record.statusBeforeCompletion || 'NO PRAZO';
         applyPromanStatus(record, restoreStatus);
       }
       save();
-      global.dispatchEvent(new CustomEvent('psm:proman-changed'));
+      global.dispatchEvent(new CustomEvent('psm:proman-changed', { detail: { source: 'daily' } }));
       try {
         render();
       } catch (error) {

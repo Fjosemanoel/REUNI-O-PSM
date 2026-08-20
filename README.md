@@ -1,4 +1,12 @@
-# PSM Analytics Pro 2.18.12
+# PSM Analytics Pro 2.18.13
+
+## Correção 2.18.13 — Programação diária semanal e mais leve
+
+- A coluna `Realizado` mostra somente atividades concluídas nas datas da semana selecionada.
+- Cada atividade concluída aparece apenas no dia da sua conclusão e sai automaticamente quando a semana de planejamento avança.
+- Atividades antigas sem data de conclusão deixam de ocupar a Programação diária.
+- A base PROMAN é processada apenas uma vez por atualização da tela, em vez de ser relida para cada dia.
+- Alterar semana, dia, unidade ou oficina salva apenas preferências leves no navegador e não envia novamente toda a base ao Supabase.
 
 ## Correção 2.18.12 — conclusão automática PROMAN
 

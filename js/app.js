@@ -16,6 +16,7 @@ let appMode='';
 const ACCESS_USERS_KEY='psm-access-users-v1';
 const ACCESS_FILTERS_KEY='psm-access-filters-v1';
 const PRESENTATION_SESSION_KEY='psm-presentation-session-v1';
+const DAILY_PREFERENCES_KEY='psm-daily-preferences-v1';
 const PRESENTATION_SESSION_DURATION=24*60*60*1000;
 let activeAdminUserId='';
 const VIEWER_ALLOWED_VIEWS=new Set(['dashboard','ordens','programacao','quadro','ataFab','ataBrit','proman','promanBacklog','promanAtaFabrica','promanAtaBritagem']);
@@ -344,6 +345,19 @@ function isDailyPlanOrder(order){
 function normalizeDailyObservations(value){
   if(!value||typeof value!=='object'||Array.isArray(value))return{};
   return Object.fromEntries(Object.entries(value).map(([key,text])=>[String(key),String(text??'')]));
+}
+function saveDailyPreferences(){
+  try{localStorage.setItem(DAILY_PREFERENCES_KEY,JSON.stringify({week:state.dailySelectedWeek,planningWeek:automaticPlanningWeek(),day:state.dailySelectedDay,promanPlants:state.dailySelectedPromanPlants,offices:state.dailySelectedOffices}));}
+  catch(error){console.warn('Não foi possível salvar os filtros da Programação diária.',error);}
+}
+function loadDailyPreferences(){
+  try{
+    const saved=JSON.parse(localStorage.getItem(DAILY_PREFERENCES_KEY));if(!saved)return;
+    state.dailySelectedWeek=Number(saved.planningWeek)===automaticPlanningWeek()?(Number(saved.week)||automaticPlanningWeek()):automaticPlanningWeek();
+    state.dailySelectedDay=['0','1','2','3','4'].includes(String(saved.day))?String(saved.day):'';
+    state.dailySelectedPromanPlants=Array.isArray(saved.promanPlants)?saved.promanPlants.filter(value=>['britagem','fabrica'].includes(value)):state.dailySelectedPromanPlants;
+    state.dailySelectedOffices=Array.isArray(saved.offices)?saved.offices.map(upper).filter(Boolean):state.dailySelectedOffices;
+  }catch(error){console.warn('Não foi possível restaurar os filtros da Programação diária.',error);}
 }
 function toast(msg){const el=$('#toast');el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),2200);}
 function currentAuditUser(){
@@ -1118,10 +1132,11 @@ function orderMatchesMapArea(order,mapArea){
   if(token.includes('ROTINA CELULA'))return qppValue(order)==='Rotina';
   return Boolean(area)&&(area===token||area.includes(token)||token.includes(area));
 }
-function dailyOrdersForDay(day,eligible){
+function dailyOrdersForDay(day,eligible,promanActivities=[]){
   const areas=dayMapAreas(day);
-  const psmOrders=eligible.filter(order=>areas.some(area=>orderMatchesMapArea(order,area)));
-  const promanOrders=window.PSMProMan?.getDailyActivities?.()||[];
+  const belongsToDay=order=>!isDailyCompleted(order)||normalize(order.completionDate)===normalize(day.date);
+  const psmOrders=eligible.filter(order=>areas.some(area=>orderMatchesMapArea(order,area))).filter(belongsToDay);
+  const promanOrders=promanActivities.filter(belongsToDay);
   return [...psmOrders,...promanOrders];
 }
 function renderDailyPromanPlantFilter(){
@@ -1180,7 +1195,7 @@ function dailyOrderCard(order,day){
     ?`<small class="daily-order-labor"><b>Tipo:</b> ${escapeHtml(promanType||'NÃO')}</small>`
     :`<small class="daily-order-labor"><b>Mão de obra:</b> ${escapeHtml(laborText)}</small>`;
   return `<article class="daily-order">
-    <div class="daily-order-heading"><strong>${escapeHtml(order.ordem)}</strong><span class="daily-order-controls">${badges}<label class="daily-checkin ${completed?'is-checked':''}" title="${completed?'Remover check-in':'Marcar atividade como realizada'}"><input type="checkbox" data-daily-checkin-id="${escapeHtml(order.id)}" ${order.isProman?`data-proman-record-id="${escapeHtml(order.promanRecordId)}" data-proman-plant="${escapeHtml(order.promanPlant)}" data-proman-os="${escapeHtml(order.ordem)}" data-proman-what="${escapeHtml(order.descricao)}"`:''} ${completed?'checked':''} aria-label="${completed?'Remover check-in da':'Marcar como realizada a'} ordem ${escapeHtml(order.ordem)}"></label></span></div>
+    <div class="daily-order-heading"><strong>${escapeHtml(order.ordem)}</strong><span class="daily-order-controls">${badges}<label class="daily-checkin ${completed?'is-checked':''}" title="${completed?'Remover check-in':'Marcar atividade como realizada'}"><input type="checkbox" data-daily-checkin-id="${escapeHtml(order.id)}" data-daily-day="${escapeHtml(day?.date||'')}" ${order.isProman?`data-proman-record-id="${escapeHtml(order.promanRecordId)}" data-proman-plant="${escapeHtml(order.promanPlant)}" data-proman-os="${escapeHtml(order.ordem)}" data-proman-what="${escapeHtml(order.descricao)}"`:''} ${completed?'checked':''} aria-label="${completed?'Remover check-in da':'Marcar como realizada a'} ordem ${escapeHtml(order.ordem)}"></label></span></div>
     <p>${escapeHtml(order.descricao||'Sem descrição')}</p>
     <small class="daily-order-meta">${escapeHtml(meta)}</small>
     ${detail}
@@ -1203,8 +1218,8 @@ function persistDailyObservation(target){
   if(before===after)return;
   if(after)state.dailyObservations[observationKey]=after;
   else delete state.dailyObservations[observationKey];
-  save();
   if(order)log('Observação diária alterada',`OS ${order.ordem}: observação exclusiva da programação diária atualizada.`);
+  else save();
 }
 function setDailyTvMode(active){
   document.body.classList.toggle('daily-tv-mode',Boolean(active));
@@ -1239,11 +1254,14 @@ function renderDailyPlan(){
   if(!week){grid.innerHTML='<p>Semana não encontrada.</p>';return;}
   const eligible=state.orders.filter(isDailyPlanOrder);
   const indexedDays=week.days.map((day,index)=>({day,index}));
+  const weekDates=indexedDays.map(item=>normalize(item.day.date)).filter(Boolean);
+  const promanActivities=window.PSMProMan?.getDailyActivities?.({startDate:weekDates[0]||'',endDate:weekDates[weekDates.length-1]||''})||[];
+  const ordersByDay=new Map(indexedDays.map(({day})=>[day.date,dailyOrdersForDay(day,eligible,promanActivities)]));
   const visibleDays=state.dailySelectedDay===''?indexedDays:indexedDays.filter(item=>String(item.index)===state.dailySelectedDay);
   renderDailyPromanPlantFilter();
   const selectedPromanPlants=new Set(state.dailySelectedPromanPlants);
   const matchesPromanPlant=order=>!order.isProman||!selectedPromanPlants.size||selectedPromanPlants.has(order.promanPlant);
-  const visibleOrders=visibleDays.flatMap(item=>dailyOrdersForDay(item.day,eligible)).filter(matchesPromanPlant);
+  const visibleOrders=visibleDays.flatMap(item=>ordersByDay.get(item.day.date)||[]).filter(matchesPromanPlant);
   const offices=[...new Set(visibleOrders.map(order=>upper(order.oficina)).filter(Boolean))]
     .sort((a,b)=>a.localeCompare(b,'pt-BR',{numeric:true,sensitivity:'base'}));
   updateDailyOfficeFilter(offices);
@@ -1251,7 +1269,7 @@ function renderDailyPlan(){
   grid.classList.toggle('single-day',visibleDays.length===1);
   grid.innerHTML=visibleDays.map(({day})=>{
     const areas=dayMapAreas(day);
-    const orders=dailyOrdersForDay(day,eligible).filter(matchesPromanPlant).filter(order=>!selectedOffices.size||selectedOffices.has(upper(order.oficina)));
+    const orders=(ordersByDay.get(day.date)||[]).filter(matchesPromanPlant).filter(order=>!selectedOffices.size||selectedOffices.has(upper(order.oficina)));
     const qppOrders=orders.filter(order=>qppValue(order)==='QPP'&&!isDailyCompleted(order));
     const routineOrders=orders.filter(order=>qppValue(order)==='Rotina'&&!isDailyCompleted(order));
     const completedOrders=orders.filter(isDailyCompleted);
@@ -1523,12 +1541,12 @@ function wireRequestedImprovements(){
   $('#fMO')?.addEventListener('change',normalizeActivityLabor);
   $('#dailyWeekFilter')?.addEventListener('change',event=>{
     state.dailySelectedWeek=Number(event.target.value)||automaticPlanningWeek();
-    save();
+    saveDailyPreferences();
     renderDailyPlan();
   });
   $('#dailyDayFilter')?.addEventListener('change',event=>{
     state.dailySelectedDay=event.target.value;
-    save();
+    saveDailyPreferences();
     renderDailyPlan();
   });
   $('#btnDailyTv')?.addEventListener('click',toggleDailyTvMode);
@@ -1551,7 +1569,7 @@ function wireRequestedImprovements(){
   $('#dailyPromanPlantFilterAll')?.addEventListener('change',event=>{
     if(!event.target.checked)return;
     state.dailySelectedPromanPlants=[];
-    save();
+    saveDailyPreferences();
     renderDailyPlan();
     $('#dailyPromanPlantFilterMenu').hidden=false;
     $('#dailyPromanPlantFilter').classList.add('open');
@@ -1560,7 +1578,7 @@ function wireRequestedImprovements(){
   $('#dailyPromanPlantFilterOptions')?.addEventListener('change',event=>{
     if(!event.target.matches('input[type=checkbox]'))return;
     state.dailySelectedPromanPlants=[...$('#dailyPromanPlantFilterOptions').querySelectorAll('input:checked')].map(input=>input.value);
-    save();
+    saveDailyPreferences();
     renderDailyPlan();
     $('#dailyPromanPlantFilterMenu').hidden=false;
     $('#dailyPromanPlantFilter').classList.add('open');
@@ -1581,7 +1599,7 @@ function wireRequestedImprovements(){
   $('#dailyOfficeFilterAll')?.addEventListener('change',event=>{
     if(!event.target.checked)return;
     state.dailySelectedOffices=[];
-    save();
+    saveDailyPreferences();
     renderDailyPlan();
     $('#dailyOfficeFilterMenu').hidden=false;
     $('#dailyOfficeFilter').classList.add('open');
@@ -1590,7 +1608,7 @@ function wireRequestedImprovements(){
   $('#dailyOfficeFilterOptions')?.addEventListener('change',event=>{
     if(!event.target.matches('input[type=checkbox]'))return;
     state.dailySelectedOffices=[...$('#dailyOfficeFilterOptions').querySelectorAll('input:checked')].map(input=>upper(input.value));
-    save();
+    saveDailyPreferences();
     renderDailyPlan();
     $('#dailyOfficeFilterMenu').hidden=false;
     $('#dailyOfficeFilter').classList.add('open');
@@ -1611,7 +1629,7 @@ function wireRequestedImprovements(){
       const order=state.orders.find(item=>item.id===checkinId);
       if(!order){
         let changed=false;
-        try{changed=window.PSMProMan?.setDailyCompleted?.(checkinId,Boolean(event.target.checked),event.target.dataset.promanRecordId||'',event.target.dataset.promanPlant||'',event.target.dataset.promanOs||'',event.target.dataset.promanWhat||'')===true;}
+        try{changed=window.PSMProMan?.setDailyCompleted?.(checkinId,Boolean(event.target.checked),event.target.dataset.promanRecordId||'',event.target.dataset.promanPlant||'',event.target.dataset.promanOs||'',event.target.dataset.promanWhat||'',event.target.dataset.dailyDay||'')===true;}
         catch(error){console.error('Falha ao concluir atividade PROMAN.',error);}
         if(changed){
           log(event.target.checked?'Atividade PROMAN realizada':'Atividade PROMAN reaberta',`${checkinId} ${event.target.checked?'marcada como concluída':'devolvida para o planejamento'}.`);
@@ -1621,6 +1639,7 @@ function wireRequestedImprovements(){
         return;
       }
       order.realizado=Boolean(event.target.checked);
+      order.completionDate=order.realizado?(event.target.dataset.dailyDay||new Date().toISOString().slice(0,10)):'';
       log(order.realizado?'Check-in realizado':'Check-in removido',`OS ${order.ordem} ${order.realizado?'movida para Realizado':'devolvida para sua coluna de origem'}.`);
       renderDailyPlan();
       toast(order.realizado?'Atividade marcada como realizada':'Atividade devolvida para o planejamento');
@@ -1655,7 +1674,7 @@ function wireRequestedImprovements(){
     state.capacityChartAreas=[...selected];save();renderCapacity();renderCharts();renderCapacityConsumption();
     toast(state.capacityChartAreas.length?'Áreas do gráfico atualizadas':'O gráfico voltou a exibir todas as áreas');
   });
-  window.addEventListener('psm:proman-changed',()=>{if(state.activeView==='programacao')renderDailyPlan();save();});
+  window.addEventListener('psm:proman-changed',event=>{if(event.detail?.source==='daily')return;if(state.activeView==='programacao')renderDailyPlan();save();});
 }
 
 function wire(){
@@ -1889,6 +1908,7 @@ function initializeApp(){
   window.addEventListener('psm:sync-status',updateServerSyncStatus);
   updatePlanningWeek();
   load();
+  loadDailyPreferences();
   ensureQppBoard();
   ensureMeetings();
   if(!state.orders.length){
