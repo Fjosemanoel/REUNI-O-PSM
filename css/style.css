@@ -493,6 +493,7 @@ html,body{max-width:100%;overflow-x:hidden}
 .daily-checkin input{width:17px;height:17px;margin:0;accent-color:#22c55e;cursor:pointer}
 .daily-checkin.is-checked{border-color:#22c55e;background:color-mix(in srgb,#22c55e 18%,var(--surface2));color:#22c55e}
 .daily-open-project{align-self:end;min-height:39px;white-space:nowrap;background:#98ca3d;color:#063568}
+.daily-clear-archive{align-self:end;min-height:39px;white-space:nowrap}
 .daily-tv-button{align-self:end;min-height:39px;white-space:nowrap;background:linear-gradient(135deg,#004ea2,#007fc4)}
 .daily-tv-exit{display:none}
 .daily-badge{padding:3px 6px;border-radius:999px;font-size:9px!important;font-weight:900;text-transform:uppercase}.daily-badge.is-qpp{background:#166534;color:#dcfce7}.daily-badge.is-routine{background:#854d0e;color:#fef9c3}

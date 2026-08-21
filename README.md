@@ -1,4 +1,14 @@
-# PSM Analytics Pro 2.18.13
+# PSM Analytics Pro 2.18.14
+
+## Correção 2.18.14 — Áreas selecionadas e Programação diária preservada
+
+- A seleção feita no cadastro de HH disponível não é mais apagada pelo botão geral `Limpar filtros`.
+- O quadro de consumo de HH e o gráfico `Capacidade x planejamento por área` mostram somente as áreas marcadas no cadastro de HH.
+- A seleção explícita permite inclusive ocultar todas as áreas, sem o sistema voltar automaticamente para todas.
+- Ordens QPP e Rotina exibidas na Programação diária são fixadas na respectiva semana e dia.
+- Limpar o backlog de ordens ou a base SISTEMÁTICAS preserva essas atividades somente na Programação diária.
+- O botão `Limpar fixados` remove, quando necessário, os registros preservados da semana selecionada e suas observações diárias.
+- O arquivo PSM e a sincronização com o servidor agora incluem o histórico fixado da Programação diária.
 
 ## Correção 2.18.13 — Programação diária semanal e mais leve
 
